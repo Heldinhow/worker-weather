@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Home — Technology you don't feel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300&family=Source+Serif+4:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Hero Section -->
+  <section id="hero" class="hero">
+    <canvas id="particle-canvas"></canvas>
+    <div class="hero-content">
+      <h1 class="hero-title">AURA HOME</h1>
+    </div>
+    <div class="scroll-indicator">
+      <span class="scroll-line"></span>
+    </div>
+  </section>
+
+  <!-- Invisible Control Section -->
+  <section id="control" class="control-section">
+    <div class="control-panel">
+      <div class="panel-display">
+        <div class="temp-display">
+          <span class="temp-value">22.0</span>
+          <span class="temp-unit">°C</span>
+        </div>
+        <div class="light-display">
+          <span class="light-label">Reading</span>
+        </div>
+      </div>
+    </div>
+    <p class="control-hint">Move to experience</p>
+  </section>
+
+  <!-- Scene Narrative Section -->
+  <section id="scenes" class="scenes-section">
+    <div class="scene" data-scene="morning">
+      <div class="scene-visual">
+        <div class="scene-particles"></div>
+      </div>
+      <div class="scene-text">
+        <h2>Morning</h2>
+        <p>Light that knows when to wake you</p>
+      </div>
+    </div>
+    <div class="light-strip"></div>
+    <div class="scene" data-scene="reading">
+      <div class="scene-visual"></div>
+      <div class="scene-text">
+        <h2>Reading</h2>
+        <p>Pages turn, shadows adjust</p>
+      </div>
+    </div>
+    <div class="light-strip"></div>
+    <div class="scene" data-scene="bathing">
+      <div class="scene-visual"></div>
+      <div class="scene-text">
+        <h2>Bathing</h2>
+        <p>Steam rises, warmth holds</p>
+      </div>
+    </div>
+    <div class="light-strip"></div>
+    <div class="scene" data-scene="evening">
+      <div class="scene-visual"></div>
+      <div class="scene-text">
+        <h2>Evening</h2>
+        <p>The day settles, so do you</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Folded Specs Section -->
+  <section id="specs" class="specs-section">
+    <div class="spec-card">
+      <div class="spec-tagline">0.1-second ultra-fast response</div>
+      <div class="spec-details">
+        <p>Our neural processing chip detects movement, light, and temperature shifts before you notice them. The home responds to life, not to commands.</p>
+      </div>
+    </div>
+    <div class="spec-card">
+      <div class="spec-tagline">Invisible presence detection</div>
+      <div class="spec-details">
+        <p>Millimeter-wave sensors map your home without cameras. Your privacy remains untouched, your movements understood.</p>
+      </div>
+    </div>
+    <div class="spec-card">
+      <div class="spec-tagline">19,000 color temperatures</div>
+      <div class="spec-details">
+        <p>From candlelight warmth to daylight clarity — each bulb renders light as nature intended, shifting so gradually your circadian rhythm stays intact.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-logo">AURA HOME</div>
+    <p class="footer-tagline">Technology you don't feel</p>
+    <nav class="footer-nav">
+      <a href="#control">Control</a>
+      <a href="#scenes">Scenes</a>
+      <a href="#specs">Specs</a>
+    </nav>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
