@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/Polymarket.Bot.Domain.csproj": {}
+  },
+  "projects": {
+    "/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/Polymarket.Bot.Domain.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/Polymarket.Bot.Domain.csproj",
+        "projectName": "Polymarket.Bot.Domain",
+        "projectPath": "/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/Polymarket.Bot.Domain.csproj",
+        "packagesPath": "/Users/helder/.nuget/packages/",
+        "outputPath": "/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/helder/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

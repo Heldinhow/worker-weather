@@ -1,0 +1,11 @@
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.AssemblyInfoInputs.cache
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.AssemblyInfo.cs
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.csproj.CoreCompileInputs.cache
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/bin/Debug/net8.0/Polymarket.Bot.Domain.deps.json
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/bin/Debug/net8.0/Polymarket.Bot.Domain.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/bin/Debug/net8.0/Polymarket.Bot.Domain.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/refint/Polymarket.Bot.Domain.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/Polymarket.Bot.Domain.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Domain/obj/Debug/net8.0/ref/Polymarket.Bot.Domain.dll

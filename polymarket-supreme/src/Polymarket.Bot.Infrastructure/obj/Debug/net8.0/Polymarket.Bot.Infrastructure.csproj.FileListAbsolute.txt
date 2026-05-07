@@ -1,0 +1,17 @@
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Infrastructure.deps.json
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Infrastructure.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Infrastructure.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Application.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Domain.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Domain.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/bin/Debug/net8.0/Polymarket.Bot.Application.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.csproj.AssemblyReference.cache
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.AssemblyInfoInputs.cache
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.AssemblyInfo.cs
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.csproj.CoreCompileInputs.cache
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymark.2BD2F813.Up2Date
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/refint/Polymarket.Bot.Infrastructure.dll
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/Polymarket.Bot.Infrastructure.pdb
+/Users/helder/polymarket-supreme/src/Polymarket.Bot.Infrastructure/obj/Debug/net8.0/ref/Polymarket.Bot.Infrastructure.dll
