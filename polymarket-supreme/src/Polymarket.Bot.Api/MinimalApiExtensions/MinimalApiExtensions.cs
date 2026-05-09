@@ -11,16 +11,20 @@ public static class MinimalApiExtensions
 {
     public static WebApplicationBuilder AddApplicationServices(this WebApplicationBuilder builder)
     {
-        var connectionString = builder.Configuration
+        var pgConnectionString = builder.Configuration
             .GetConnectionString("PolymarketDb")
             ?? "Host=localhost;Port=5432;Database=polymarket_bot;Username=polymarket;Password=polymarket_dev";
 
+        var redisConnectionString = builder.Configuration
+            .GetConnectionString("Redis")
+            ?? "localhost:6379";
+
         // Infrastructure (EF Core, Redis, stub services)
-        builder.Services.AddInfrastructure(connectionString);
+        builder.Services.AddInfrastructure(pgConnectionString, redisConnectionString);
 
         // Health checks
         builder.Services.AddHealthChecks()
-            .AddNpgSql(connectionString, name: "postgresql")
+            .AddNpgSql(pgConnectionString, name: "postgresql")
             .AddRedis(
                 builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379",
                 name: "redis");

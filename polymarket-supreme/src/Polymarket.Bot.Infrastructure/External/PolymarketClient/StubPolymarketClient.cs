@@ -15,11 +15,12 @@ public class StubPolymarketClient : IPolymarketClient
         await Task.Delay(1, ct);
         return new List<MarketDto>
         {
-            CreateMarket("btc-updown-5m-active1", "Will BTC be above 105,000 at 5:00 PM UTC?", 0.99m, true),
-            CreateMarket("btc-updown-5m-active2", "Will BTC be above 104,000 at 5:00 PM UTC?", 0.95m, true),
-            CreateMarket("btc-updown-5m-active3", "Will BTC be above 103,000 at 5:00 PM UTC?", 0.51m, true),
-            CreateMarket("btc-updown-5m-active4", "Will BTC be above 102,000 at 5:00 PM UTC?", 0.90m, true),
-            CreateMarket("btc-updown-5m-lowvol",  "Will BTC be above 101,000 at 5:00 PM UTC?", 0.99m, false),
+            CreateMarket("rain-nyc-may10", "Will it rain in New York on May 10, 2026?", 0.91m, true),
+            CreateMarket("rain-london-may10", "Will it rain in London on May 10, 2026?", 0.89m, true),
+            CreateMarket("rain-tokyo-may10", "Will it rain in Tokyo on May 10, 2026?", 0.94m, true),
+            CreateMarket("rain-paris-may10", "Will it rain in Paris on May 10, 2026?", 0.87m, true),
+            CreateMarket("rain-sydney-may10", "Will it rain in Sydney on May 10, 2026?", 0.95m, false),
+            CreateMarket("rain-berlin-may10", "Will it rain in Berlin on May 10, 2026?", 0.92m, true),
         };
     }
 

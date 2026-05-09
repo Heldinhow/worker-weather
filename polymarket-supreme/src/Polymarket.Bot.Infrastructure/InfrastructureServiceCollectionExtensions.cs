@@ -7,16 +7,17 @@ using Polymarket.Bot.Domain.Entities;
 using Polymarket.Bot.Domain.Enums;
 using Polymarket.Bot.Infrastructure.External.PolymarketClient;
 using Polymarket.Bot.Infrastructure.Persistence.DbContext;
+using Polymarket.Bot.Infrastructure.Services;
 
 namespace Polymarket.Bot.Infrastructure;
 
 public static class InfrastructureServiceCollectionExtensions
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string pgConnectionString, string redisConnectionString = "localhost:6379")
     {
         // PostgreSQL
         services.AddDbContext<PolymarketDbContext>(options =>
-            options.UseNpgsql(connectionString, npgsql =>
+            options.UseNpgsql(pgConnectionString, npgsql =>
             {
                 npgsql.EnableRetryOnFailure(3);
                 npgsql.CommandTimeout(30);
@@ -25,10 +26,14 @@ public static class InfrastructureServiceCollectionExtensions
         // Redis cache
         services.AddStackExchangeRedisCache(options =>
         {
-            options.Configuration = connectionString.Replace("Host=localhost;Port=5432", "localhost:6379")
-                .Replace("Database=polymarket_bot", "");
+            options.Configuration = redisConnectionString;
             options.InstanceName = "PolymarketBot:";
         });
+
+        // Weather services and cache
+        services.AddScoped<IWeatherCache, RedisWeatherCache>();
+        services.AddScoped<IWeatherService, OpenWeatherMapStub>();
+        services.AddScoped<IWeatherService, WeatherApiStub>();
 
         // Infrastructure implementations
         services.AddScoped<IAssetPriceFeed, StubAssetPriceFeed>();

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Polymarket.Bot.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+575181af0332617f364106447b660085f49d1846")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+59f3c5187cf008d823d3d842eaa0d6654459cd04")]
 [assembly: System.Reflection.AssemblyProductAttribute("Polymarket.Bot.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Polymarket.Bot.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
