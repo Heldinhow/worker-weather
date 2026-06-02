@@ -1,6 +1,7 @@
 import { type ClobClient, Side, OrderType, type OrderBookSummary } from "@polymarket/clob-client-v2";
 import type { BucketState } from "./types.ts";
 import type { Config } from "./config.ts";
+import { log } from "./logger.ts";
 
 export async function postOrder(
   clob: ClobClient,
@@ -14,8 +15,10 @@ export async function postOrder(
     let shares = 0;
     let cost = 0;
     let price = 0.99;
+    let blind = false;
 
     if (asks.length === 0) {
+      blind = true;
       bucket.attempted = true;
       shares = config.maxStake / 0.99;
       cost = config.maxStake;
@@ -40,16 +43,26 @@ export async function postOrder(
       }
     }
 
-    if (shares < config.minShares && !bucket.attempted) {
+    if (shares < config.minShares && !blind) {
+      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=insufficient-liquidity shares=${shares.toFixed(2)} minShares=${config.minShares}`);
       return;
     }
 
     if (cost < 1.0 && config.prod) {
+      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=below-min-cost cost=${cost.toFixed(4)}`);
       return;
     }
 
     const priceRounded = Math.round(price * 100) / 100;
     const sharesRounded = Math.round(shares * 100) / 100;
+    const costRounded = (priceRounded * sharesRounded).toFixed(4);
+
+    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} price=${priceRounded} shares=${sharesRounded} cost=${costRounded} blind=${blind}${config.dryRun ? " [DRY RUN]" : ""}`);
+
+    if (config.dryRun) {
+      bucket.bought = true;
+      return;
+    }
 
     const order = await clob.createOrder(
       {
@@ -62,12 +75,15 @@ export async function postOrder(
     );
 
     const resp = await clob.postOrder(order, OrderType.FOK);
+    const status: string = resp?.status ?? "unknown";
 
-    if (resp?.status === "matched") {
+    log("trader", `result=${status} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
+
+    if (status === "matched") {
       bucket.bought = true;
     }
   } catch (err) {
-    process.stderr.write(`postOrder error for token ${bucket.noTokenId}: ${err}\n`);
+    log("trader", `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${err}`);
   } finally {
     bucket.pendingBuy = false;
   }

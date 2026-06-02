@@ -3,6 +3,7 @@ import { Wallet } from "@ethersproject/wallet";
 import { loadConfig, type CityConfig, type Config } from "./config.ts";
 import type { BucketState } from "./types.ts";
 import { runHotWindowLoop } from "./hot-window.ts";
+import { log } from "./logger.ts";
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
@@ -108,5 +109,13 @@ async function runCity(city: CityConfig, config: Config, clob: ClobClient): Prom
 }
 
 const config = loadConfig();
-const clob = await initClobClient(config);
+
+if (config.dryRun) {
+  log("boot", "DRY RUN mode — no orders will be posted to the CLOB");
+}
+
+const clob = config.dryRun
+  ? null as unknown as ClobClient
+  : await initClobClient(config);
+
 await Promise.all(config.cities.map(city => runCity(city, config, clob)));

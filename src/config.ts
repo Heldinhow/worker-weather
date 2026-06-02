@@ -10,6 +10,7 @@ export type Config = {
   maxStake: number;
   minShares: number;
   prod: boolean;
+  dryRun: boolean;
   privateKey: string;
   funderAddress: string | undefined;
   signatureType: string | undefined;
@@ -34,6 +35,7 @@ export function loadConfig(): Config {
     maxStake: Number(process.env.MAX_STAKE ?? "4"),
     minShares: Number(process.env.MIN_SHARES ?? "5"),
     prod: (process.env.PROD ?? "false") === "true",
+    dryRun: (process.env.DRY_RUN ?? "false") === "true",
     privateKey,
     funderAddress: process.env.POLY_FUNDER_ADDRESS || undefined,
     signatureType: process.env.POLY_SIGNATURE_TYPE || undefined,
