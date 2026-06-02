@@ -1,0 +1,112 @@
+import { ClobClient, Chain, SignatureTypeV2 } from "@polymarket/clob-client-v2";
+import { Wallet } from "@ethersproject/wallet";
+import { loadConfig, type CityConfig, type Config } from "./config.ts";
+import type { BucketState } from "./types.ts";
+import { runHotWindowLoop } from "./hot-window.ts";
+
+const MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+function todaySlug(citySlug: string): string {
+  const brt = new Date(Date.now() - 3 * 3600_000);
+  const month = MONTHS[brt.getUTCMonth()]!;
+  const day = brt.getUTCDate();
+  const year = brt.getUTCFullYear();
+  return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
+}
+
+function getMsUntilMidnightBrt(): number {
+  const now = Date.now();
+  const brt = new Date(now - 3 * 3600_000);
+  const nextMidnightUtc = Date.UTC(
+    brt.getUTCFullYear(),
+    brt.getUTCMonth(),
+    brt.getUTCDate() + 1,
+    3, 0, 0, 0,
+  );
+  return nextMidnightUtc - now;
+}
+
+interface GammaMarket {
+  question: string;
+  clobTokenIds: string;
+  conditionId: string;
+}
+
+interface GammaEvent {
+  negRisk: boolean;
+  markets: GammaMarket[];
+}
+
+async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; buckets: BucketState[] }> {
+  const slug = todaySlug(city.slug);
+  const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+  const events = await resp.json() as GammaEvent[];
+  const event = events[0]!;
+
+  const buckets: BucketState[] = event.markets.map(m => {
+    const [, noId] = JSON.parse(m.clobTokenIds) as [string, string];
+    const tempMatch = m.question.match(/(\d+)°C/);
+    const tempC = tempMatch ? parseInt(tempMatch[1]!, 10) : 0;
+    const lq = m.question.toLowerCase();
+    const type: "exact" | "below" | "above" =
+      lq.includes("or below") ? "below" :
+      lq.includes("or higher") ? "above" : "exact";
+
+    return {
+      tempC,
+      type,
+      noTokenId: noId!,
+      conditionId: m.conditionId,
+      negRisk: event.negRisk,
+      bought: false,
+      attempted: false,
+      pendingBuy: false,
+    };
+  });
+
+  return { slug, buckets };
+}
+
+const CLOB_HOST = "https://clob.polymarket.com";
+
+async function initClobClient(config: Config): Promise<ClobClient> {
+  const wallet = new Wallet(config.privateKey);
+  const sigType = config.signatureType !== undefined
+    ? (Number(config.signatureType) as SignatureTypeV2)
+    : SignatureTypeV2.EOA;
+  const base = new ClobClient({
+    host: CLOB_HOST,
+    chain: Chain.POLYGON,
+    signer: wallet as any,
+    signatureType: sigType,
+    funderAddress: config.funderAddress,
+  });
+  const creds = await base.createOrDeriveApiKey();
+  return new ClobClient({
+    host: CLOB_HOST,
+    chain: Chain.POLYGON,
+    signer: wallet as any,
+    creds,
+    signatureType: sigType,
+    funderAddress: config.funderAddress,
+  });
+}
+
+async function runCity(city: CityConfig, config: Config, clob: ClobClient): Promise<void> {
+  while (true) {
+    const { buckets } = await resolveSlugAndMarkets(city);
+    const observedMaxRef = { value: -Infinity };
+    const deadline = Date.now() + getMsUntilMidnightBrt();
+
+    await runHotWindowLoop(city, config, clob, buckets, observedMaxRef, deadline);
+
+    await Bun.sleep(2_000);
+  }
+}
+
+const config = loadConfig();
+const clob = await initClobClient(config);
+await Promise.all(config.cities.map(city => runCity(city, config, clob)));

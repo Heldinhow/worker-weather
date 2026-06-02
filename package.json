@@ -1,0 +1,16 @@
+{
+  "name": "weather-100-percent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@polymarket/clob-client-v2": "*",
+    "@ethersproject/wallet": "*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "@types/bun": "*"
+  }
+}
