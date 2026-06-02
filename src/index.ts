@@ -68,6 +68,9 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
     };
   });
 
+  // Sort ascending by tempC so evaluateBuckets can break early
+  buckets.sort((a, b) => a.tempC - b.tempC);
+
   return { slug, buckets };
 }
 

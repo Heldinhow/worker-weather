@@ -5,6 +5,7 @@ import { fetchNoaa } from "./fetchers/noaa.ts";
 import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
 import { evaluateBuckets } from "./evaluator.ts";
 import { postOrder } from "./trader.ts";
+import { refreshBooks } from "./book-cache.ts";
 import { log } from "./logger.ts";
 
 export function isHotWindow(now: Date, targetHourBrt: number): boolean {
@@ -23,6 +24,7 @@ function handleObs(
   obs: ObservationResult | null,
   source: string,
   ref: { value: number },
+  bucketMap: Map<string, BucketState>,
   buckets: BucketState[],
   clob: ClobClient,
   config: Config,
@@ -37,7 +39,7 @@ function handleObs(
   log(source, `observedMax ${prev} → ${obs.tempC}`);
   ref.value = obs.tempC;
   evaluateBuckets(ref.value, buckets, tokenId => {
-    const b = buckets.find(b => b.noTokenId === tokenId);
+    const b = bucketMap.get(tokenId);
     if (b) postOrder(clob, b, config);
   });
 }
@@ -50,12 +52,19 @@ export async function runHotWindowLoop(
   observedMaxRef: { value: number },
   deadline: number,
 ): Promise<void> {
+  // Pre-compute once — used on every iteration
+  const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
+  const exactTokenIds = buckets.filter(b => b.type === "exact").map(b => b.noTokenId);
+
   while (Date.now() < deadline) {
     const now = new Date();
     const activeHour = config.targetHours.find(h => isHotWindow(now, h));
 
     if (activeHour !== undefined) {
+      // Ensure book cache is fresh before entering the hot window
+      if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
       log(city.icao, `hot window open targetHour=${activeHour}`);
+
       while (isHotWindow(new Date(), activeHour)) {
         const ac1 = new AbortController();
         const t1 = setTimeout(() => ac1.abort(), 12_000);
@@ -64,20 +73,25 @@ export async function runHotWindowLoop(
 
         const p1 = fetchNoaa(city.icao, ac1.signal).then(obs => {
           clearTimeout(t1);
-          handleObs(obs, `noaa/${city.icao}`, observedMaxRef, buckets, clob, config);
+          handleObs(obs, `noaa/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
         });
         const p2 = fetchAviationWeather(city.icao, ac2.signal).then(obs => {
           clearTimeout(t2);
-          handleObs(obs, `aw/${city.icao}`, observedMaxRef, buckets, clob, config);
+          handleObs(obs, `aw/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
         });
         await Promise.all([p1, p2]);
       }
+
       log(city.icao, `hot window closed targetHour=${activeHour}`);
     } else {
-      const obs1 = await fetchNoaa(city.icao);
-      handleObs(obs1, `noaa/${city.icao}`, observedMaxRef, buckets, clob, config);
-      const obs2 = await fetchAviationWeather(city.icao);
-      handleObs(obs2, `aw/${city.icao}`, observedMaxRef, buckets, clob, config);
+      // Warm poll: METAR fetches + book cache refresh run concurrently
+      const [obs1, obs2] = await Promise.all([
+        fetchNoaa(city.icao),
+        fetchAviationWeather(city.icao),
+        config.dryRun ? Promise.resolve() : refreshBooks(clob, exactTokenIds),
+      ]);
+      handleObs(obs1, `noaa/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
+      handleObs(obs2, `aw/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
 
       const brtH = getBrtHour(new Date());
       const minH = Math.min(...config.targetHours);

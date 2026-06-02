@@ -1,6 +1,7 @@
-import { type ClobClient, Side, OrderType, type OrderBookSummary } from "@polymarket/clob-client-v2";
+import { type ClobClient, Side, OrderType } from "@polymarket/clob-client-v2";
 import type { BucketState } from "./types.ts";
 import type { Config } from "./config.ts";
+import { getCachedAsks } from "./book-cache.ts";
 import { log } from "./logger.ts";
 
 export async function postOrder(
@@ -9,8 +10,12 @@ export async function postOrder(
   config: Config,
 ): Promise<void> {
   try {
-    const book: OrderBookSummary = await clob.getOrderBook(bucket.noTokenId);
-    const asks = book.asks ?? [];
+    // Hot path: use cached order book — no HTTP call here.
+    // getCachedAsks returns null on cache miss (stale/not yet populated).
+    // null  → blind FOK without marking attempted (cache may just be cold)
+    // []    → empty book confirmed → blind FOK + mark attempted
+    const cachedAsks = getCachedAsks(bucket.noTokenId);
+    const asks = cachedAsks ?? [];
 
     let shares = 0;
     let cost = 0;
@@ -19,7 +24,7 @@ export async function postOrder(
 
     if (asks.length === 0) {
       blind = true;
-      bucket.attempted = true;
+      if (cachedAsks !== null) bucket.attempted = true; // genuinely empty book
       shares = config.maxStake / 0.99;
       cost = config.maxStake;
       price = 0.99;
@@ -44,7 +49,7 @@ export async function postOrder(
     }
 
     if (shares < config.minShares && !blind) {
-      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=insufficient-liquidity shares=${shares.toFixed(2)} minShares=${config.minShares}`);
+      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=insufficient-liquidity shares=${shares.toFixed(2)}`);
       return;
     }
 
