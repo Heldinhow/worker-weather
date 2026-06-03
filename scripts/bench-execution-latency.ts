@@ -4,6 +4,7 @@ import type { BucketState, ObservationResult } from "../src/types.ts";
 import { handleObs, runHotObservationLoops } from "../src/hot-window.ts";
 import { prepareOrders } from "../src/order-cache.ts";
 import { postOrder } from "../src/trader.ts";
+import { applyMarketMessage } from "../src/book-cache.ts";
 
 const WARMUP = 2_000;
 const RUNS = 20_000;
@@ -197,6 +198,13 @@ const preparedBucket = makeBucket("prepared-primary", 24);
 const handleBucket = makeBucket("handle-primary", 24);
 
 await prepareOrders(clob, [preparedBucket, handleBucket], config);
+
+// Populate book cache so prepared submit measures the real book-sweep path
+applyMarketMessage({
+  event_type: "book",
+  asset_id: preparedBucket.noTokenId,
+  asks: [{ price: "0.50", size: "10" }],
+});
 
 const prepared = summarize(await benchPreparedSubmit(clob, preparedBucket));
 const cold = summarize(await benchColdFallback(clob));

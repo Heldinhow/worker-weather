@@ -20,6 +20,12 @@ export function getCachedAsks(tokenId: string): OrderSummary[] | null {
   return entry.asks;
 }
 
+// Hot-path variant: skips stale check. Callers must ensure cache is fresh.
+export function getCachedAsksFast(tokenId: string): OrderSummary[] | null {
+  const entry = cache.get(tokenId);
+  return entry ? entry.asks : null;
+}
+
 export async function refreshBooks(clob: ClobClient, tokenIds: string[]): Promise<void> {
   await Promise.all(
     tokenIds.map(async id => {
