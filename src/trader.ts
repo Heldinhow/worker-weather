@@ -33,19 +33,20 @@ export async function postOrder(
 
     let shares = 0;
     let cost = 0;
-    let price = 0.99;
+    let price = config.maxNoPrice;
     let blind = false;
 
     if (asks.length === 0) {
       blind = true;
       if (cachedAsks !== null) bucket.attempted = true; // genuinely empty book
-      shares = config.maxStake / 0.99;
+      price = config.maxNoPrice;
+      shares = config.maxStake / price;
       cost = config.maxStake;
-      price = 0.99;
     } else {
       let budget = config.maxStake;
       for (const ask of asks) {
         const p = parseFloat(ask.price);
+        if (p > config.maxNoPrice) break; // skip levels above price ceiling
         const s = parseFloat(ask.size);
         const levelCost = p * s;
         if (budget >= levelCost) {
@@ -60,6 +61,11 @@ export async function postOrder(
           break;
         }
       }
+    }
+
+    if (shares === 0 && !blind) {
+      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=above-max-price threshold=${config.maxNoPrice}`);
+      return;
     }
 
     if (shares < config.minShares && !blind) {
