@@ -5,6 +5,8 @@ export type CityConfig = {
   icao: string;
   timezone: string;
   targetHours: number[];
+  hotWindowStart: number;
+  hotWindowEnd: number;
 };
 
 export type Config = {

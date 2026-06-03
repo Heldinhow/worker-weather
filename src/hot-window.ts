@@ -8,12 +8,17 @@ import { postOrder } from "./trader.ts";
 import { refreshBooks } from "./book-cache.ts";
 import { log, formatBrt } from "./logger.ts";
 
-export function isHotWindow(now: Date, targetHourBrt: number): boolean {
+export function isHotWindow(
+  now: Date,
+  targetHourBrt: number,
+  windowStart: number,
+  windowEnd: number,
+): boolean {
   const brt = new Date(now.getTime() - 3 * 3600_000);
   const h = brt.getUTCHours();
   const m = brt.getUTCMinutes();
   const prevH = (targetHourBrt - 1 + 24) % 24;
-  return (h === prevH && m >= 53) || (h === targetHourBrt && m <= 4);
+  return (h === prevH && m >= windowStart) || (h === targetHourBrt && m <= windowEnd);
 }
 
 function getBrtHour(now: Date): number {
@@ -58,14 +63,14 @@ export async function runHotWindowLoop(
 
   while (Date.now() < deadline) {
     const now = new Date();
-    const activeHour = city.targetHours.find(h => isHotWindow(now, h));
+    const activeHour = city.targetHours.find(h => isHotWindow(now, h, city.hotWindowStart, city.hotWindowEnd));
 
     if (activeHour !== undefined) {
       // Ensure book cache is fresh before entering the hot window
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
       log(city.icao, `hot window open targetHour=${activeHour}`);
 
-      while (isHotWindow(new Date(), activeHour)) {
+      while (isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
         const ac1 = new AbortController();
         const t1 = setTimeout(() => ac1.abort(), 12_000);
         const ac2 = new AbortController();
