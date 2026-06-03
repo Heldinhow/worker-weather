@@ -36,9 +36,13 @@ _Avoid_: station code, airport code
 The Polymarket event identifier. Format: `highest-temperature-in-{city}-on-{fullMonth}-{day}-{year}` (full English month name, no zero-padding on day). Example: `highest-temperature-in-sao-paulo-on-june-2-2026`. The `CityConfig.slug` field stores only the city segment (`sao-paulo`); the full slug is composed at runtime.
 _Avoid_: market ID, event ID, event key
 
-**FOK** (Fill-or-Kill):
-An order type that must be filled immediately in full or is cancelled. The only order type the bot posts. If no ask is visible, a blind FOK at 0.99 is sent once and the bucket is marked `attempted` permanently.
-_Avoid_: immediate-or-cancel, market order
+**FAK** (Fill-and-Kill):
+The order type the bot uses for all executions. Fills whatever shares are available in the book immediately and cancels the remainder — never rests in the book. Chosen over FOK because a partial fill on a Contested NO is strictly better than no fill.
+_Avoid_: FOK, immediate-or-cancel, market order
+
+**Blind Experiment**:
+When the book cache is null (cold start or stale), the bot fires two FAK orders in parallel for the same bucket: a limit FAK at 0.99 and a `createAndPostMarketOrder` FAK. Both results are logged so fill price and execution quality can be compared empirically to inform future strategy.
+_Avoid_: blind FOK, fallback order
 
 **BRT** (Brasília Time):
 UTC−3, used throughout for date resolution, hot-window detection, and daily reset. Brazil abolished DST in 2019 so this offset is fixed year-round for all supported cities.

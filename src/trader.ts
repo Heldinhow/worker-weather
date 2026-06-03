@@ -9,14 +9,16 @@ function gcd(a: number, b: number): number {
   return a;
 }
 
-// FOK orders require price * shares to have ≤ 2 decimal places.
+// FAK orders require price * shares to have ≤ 2 decimal places.
 // For price p = a/100, the minimum valid share step is 1/gcd(a,100).
-// Example: price=0.99 → gcd(99,100)=1 → step=1 (shares must be integer).
 function snapShares(shares: number, price: number): number {
   const a = Math.round(price * 100);
   const step = 1 / gcd(a, 100);
   return Math.floor(shares / step) * step;
 }
+
+// Max valid CLOB price for a binary market — used as limit ceiling when book is unknown.
+const LIMIT_PRICE = 0.99;
 
 export async function postOrder(
   clob: ClobClient,
@@ -24,65 +26,38 @@ export async function postOrder(
   config: Config,
 ): Promise<void> {
   try {
-    // Hot path: use cached order book — no HTTP call here.
-    // getCachedAsks returns null on cache miss (stale/not yet populated).
-    // null  → blind FOK without marking attempted (cache may just be cold)
-    // []    → empty book confirmed → blind FOK + mark attempted
     const cachedAsks = getCachedAsks(bucket.noTokenId);
-    const asks = cachedAsks ?? [];
 
+    if (cachedAsks !== null && cachedAsks.length === 0) {
+      bucket.attempted = true;
+      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=empty-book`);
+      return;
+    }
+
+    if (cachedAsks === null) {
+      await postBlindExperiment(clob, bucket, config);
+      return;
+    }
+
+    // Book available — sweep all asks with no price ceiling
     let shares = 0;
-    let cost = 0;
-    let price = config.maxNoPrice;
-    let blind = false;
-
-    if (asks.length === 0) {
-      blind = true;
-      if (cachedAsks !== null) bucket.attempted = true; // genuinely empty book
-      price = config.maxNoPrice;
-      shares = config.maxStake / price;
-      cost = config.maxStake;
-    } else {
-      let budget = config.maxStake;
-      for (const ask of asks) {
-        const p = parseFloat(ask.price);
-        if (p > config.maxNoPrice) break; // skip levels above price ceiling
-        const s = parseFloat(ask.size);
-        const levelCost = p * s;
-        if (budget >= levelCost) {
-          shares += s;
-          cost += levelCost;
-          budget -= levelCost;
-          price = p;
-        } else {
-          shares += budget / p;
-          cost += budget;
-          price = p;
-          break;
-        }
+    let budget = config.maxStake;
+    for (const ask of cachedAsks) {
+      const p = parseFloat(ask.price);
+      const s = parseFloat(ask.size);
+      const levelCost = p * s;
+      if (budget >= levelCost) {
+        shares += s;
+        budget -= levelCost;
+      } else {
+        shares += budget / p;
+        break;
       }
     }
 
-    if (shares === 0 && !blind) {
-      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=above-max-price threshold=${config.maxNoPrice}`);
-      return;
-    }
+    const sharesRounded = Math.max(config.minShares, snapShares(shares, LIMIT_PRICE));
 
-    if (shares < config.minShares && !blind) {
-      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=insufficient-liquidity shares=${shares.toFixed(2)}`);
-      return;
-    }
-
-    if (cost < 1.0 && config.prod) {
-      log("trader", `skip tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=below-min-cost cost=${cost.toFixed(4)}`);
-      return;
-    }
-
-    const priceRounded = Math.round(price * 100) / 100;
-    const sharesRounded = snapShares(shares, priceRounded);
-    const costRounded = (priceRounded * sharesRounded).toFixed(2);
-
-    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} price=${priceRounded} shares=${sharesRounded} cost=${costRounded} blind=${blind}${config.dryRun ? " [DRY RUN]" : ""}`);
+    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} price≤${LIMIT_PRICE} shares=${sharesRounded}${config.dryRun ? " [DRY RUN]" : ""}`);
 
     if (config.dryRun) {
       bucket.bought = true;
@@ -90,27 +65,62 @@ export async function postOrder(
     }
 
     const order = await clob.createOrder(
-      {
-        tokenID: bucket.noTokenId,
-        price: priceRounded,
-        size: sharesRounded,
-        side: Side.BUY,
-      },
+      { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: sharesRounded, side: Side.BUY },
       { tickSize: "0.01", negRisk: bucket.negRisk },
     );
 
-    const resp = await clob.postOrder(order, OrderType.FOK);
-    const status: string = String(resp?.status ?? "unknown");
-    const errDetail: string = resp?.errorMsg || resp?.error || "";
+    const resp = await clob.postOrder(order, OrderType.FAK);
+    logResult("trader", resp, bucket);
+    if (String(resp?.status ?? "") === "matched") bucket.bought = true;
 
-    log("trader", `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
-
-    if (status === "matched") {
-      bucket.bought = true;
-    }
   } catch (err) {
     log("trader", `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${err}`);
   } finally {
     bucket.pendingBuy = false;
   }
+}
+
+async function postBlindExperiment(
+  clob: ClobClient,
+  bucket: BucketState,
+  config: Config,
+): Promise<void> {
+  const shares = Math.max(config.minShares, snapShares(config.maxStake / LIMIT_PRICE, LIMIT_PRICE));
+
+  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake}${config.dryRun ? " [DRY RUN]" : ""}`);
+
+  if (config.dryRun) {
+    bucket.bought = true;
+    return;
+  }
+
+  const [limitResult, marketResult] = await Promise.allSettled([
+    (async () => {
+      const order = await clob.createOrder(
+        { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: shares, side: Side.BUY },
+        { tickSize: "0.01", negRisk: bucket.negRisk },
+      );
+      return clob.postOrder(order, OrderType.FAK);
+    })(),
+    clob.createAndPostMarketOrder(
+      { tokenID: bucket.noTokenId, amount: config.maxStake, side: Side.BUY },
+      { tickSize: "0.01", negRisk: bucket.negRisk },
+      OrderType.FAK,
+    ),
+  ]);
+
+  for (const [label, result] of [["limit-fak", limitResult], ["market-fak", marketResult]] as const) {
+    if (result.status === "fulfilled") {
+      logResult(`trader/${label}`, result.value, bucket);
+      if (String(result.value?.status ?? "") === "matched") bucket.bought = true;
+    } else {
+      log(`trader/${label}`, `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${result.reason}`);
+    }
+  }
+}
+
+function logResult(tag: string, resp: any, bucket: BucketState): void {
+  const status = String(resp?.status ?? "unknown");
+  const errDetail: string = resp?.errorMsg || resp?.error || "";
+  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
 }

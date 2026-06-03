@@ -25,6 +25,10 @@ function getBrtHour(now: Date): number {
   return new Date(now.getTime() - 3 * 3600_000).getUTCHours();
 }
 
+function getMetarBrtHour(obs: ObservationResult): number {
+  return new Date(obs.observedAtUtcMs - 3 * 3600_000).getUTCHours();
+}
+
 export function handleObs(
   obs: ObservationResult | null,
   source: string,
@@ -70,21 +74,23 @@ export async function runHotWindowLoop(
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
       log(city.icao, `hot window open targetHour=${activeHour}`);
 
+      const prevHour = (activeHour - 1 + 24) % 24;
+
       while (isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
         const ac1 = new AbortController();
         const t1 = setTimeout(() => ac1.abort(), 12_000);
         const ac2 = new AbortController();
         const t2 = setTimeout(() => ac2.abort(), 12_000);
 
-        const p1 = fetchNoaa(city.icao, ac1.signal).then(obs => {
-          clearTimeout(t1);
-          handleObs(obs, `noaa/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
-        });
-        const p2 = fetchAviationWeather(city.icao, ac2.signal).then(obs => {
-          clearTimeout(t2);
-          handleObs(obs, `aw/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
-        });
-        await Promise.all([p1, p2]);
+        const [obs1, obs2] = await Promise.all([
+          fetchNoaa(city.icao, ac1.signal).finally(() => clearTimeout(t1)),
+          fetchAviationWeather(city.icao, ac2.signal).finally(() => clearTimeout(t2)),
+        ]);
+
+        handleObs(obs1, `noaa/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
+        handleObs(obs2, `aw/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
+
+        if ([obs1, obs2].some(obs => obs !== null && getMetarBrtHour(obs) !== prevHour)) break;
       }
 
       log(city.icao, `hot window closed targetHour=${activeHour}`);
