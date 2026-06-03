@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ClobClient } from "@polymarket/clob-client-v2";
 import type { Config } from "./config.ts";
 import type { BucketState } from "./types.ts";
-import { getPreparedOrders, prepareOrders } from "./order-cache.ts";
+import { getPreparedOrders, limitShares, prepareOrders } from "./order-cache.ts";
 
 const config: Config = {
   cities: [],
@@ -25,6 +25,13 @@ const exactBucket: BucketState = {
   attempted: false,
   pendingBuy: false,
 };
+
+describe("limitShares", () => {
+  test("uses the same 0.99 FAK share snapping semantics", () => {
+    expect(limitShares({ ...config, maxStake: 4, minShares: 1 })).toBe(4);
+    expect(limitShares({ ...config, maxStake: 4, minShares: 5 })).toBe(5);
+  });
+});
 
 describe("prepareOrders", () => {
   test("pre-warms exact buckets and stores signed limit and market orders", async () => {

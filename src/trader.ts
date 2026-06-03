@@ -60,9 +60,8 @@ async function postLimitFak(
   const prepared = getPreparedOrders(bucket.noTokenId);
   const orderShares = prepared?.shares ?? shares;
 
-  log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${orderShares}${prepared ? " prepared=true" : ""}${config.dryRun ? " [DRY RUN]" : ""}`);
-
   if (config.dryRun) {
+    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${orderShares} [DRY RUN]`);
     bucket.bought = true;
     return;
   }
@@ -74,51 +73,56 @@ async function postLimitFak(
       { tickSize: "0.01", negRisk: bucket.negRisk },
     );
 
-  const resp = await clob.postOrder(order, OrderType.FAK);
+  const submit = clob.postOrder(order, OrderType.FAK);
+  log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${orderShares}${prepared ? " prepared=true" : ""}`);
+  const resp = await submit;
   logResult("trader", resp, bucket);
   if (String(resp?.status ?? "") === "matched") bucket.bought = true;
 }
 
-async function postBlindExperiment(
+function postBlindExperiment(
   clob: ClobClient,
   bucket: BucketState,
   config: Config,
 ): Promise<void> {
   const shares = limitShares(config);
 
-  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake}${config.dryRun ? " [DRY RUN]" : ""}`);
-
   if (config.dryRun) {
+    log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake} [DRY RUN]`);
     bucket.bought = true;
-    return;
+    return Promise.resolve();
   }
 
   const prepared = getPreparedOrders(bucket.noTokenId);
-  const [limitResult, marketResult] = await Promise.allSettled([
-    (async () => {
-      const order = prepared?.limitOrder ?? await clob.createOrder(
-        { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: shares, side: Side.BUY },
-        { tickSize: "0.01", negRisk: bucket.negRisk },
-      );
-      return clob.postOrder(order, OrderType.FAK);
-    })(),
-    prepared?.marketOrder
-      ? clob.postOrder(prepared.marketOrder, OrderType.FAK)
-      : clob.createAndPostMarketOrder(
-        { tokenID: bucket.noTokenId, amount: config.maxStake, price: LIMIT_PRICE, side: Side.BUY },
-        { tickSize: "0.01", negRisk: bucket.negRisk },
-        OrderType.FAK,
-      ),
-  ]);
+  const limitSubmit = (async () => {
+    const order = prepared?.limitOrder ?? await clob.createOrder(
+      { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: shares, side: Side.BUY },
+      { tickSize: "0.01", negRisk: bucket.negRisk },
+    );
+    return clob.postOrder(order, OrderType.FAK);
+  })();
+  const marketSubmit = prepared?.marketOrder
+    ? clob.postOrder(prepared.marketOrder, OrderType.FAK)
+    : clob.createAndPostMarketOrder(
+      { tokenID: bucket.noTokenId, amount: config.maxStake, price: LIMIT_PRICE, side: Side.BUY },
+      { tickSize: "0.01", negRisk: bucket.negRisk },
+      OrderType.FAK,
+    );
+  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake}${prepared ? " prepared=true" : ""}`);
 
-  for (const [label, result] of [["limit-fak", limitResult], ["market-fak", marketResult]] as const) {
-    if (result.status === "fulfilled") {
-      logResult(`trader/${label}`, result.value, bucket);
-      if (String(result.value?.status ?? "") === "matched") bucket.bought = true;
-    } else {
-      log(`trader/${label}`, `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${result.reason}`);
+  return Promise.allSettled([
+    limitSubmit,
+    marketSubmit,
+  ]).then(([limitResult, marketResult]) => {
+    for (const [label, result] of [["limit-fak", limitResult], ["market-fak", marketResult]] as const) {
+      if (result.status === "fulfilled") {
+        logResult(`trader/${label}`, result.value, bucket);
+        if (String(result.value?.status ?? "") === "matched") bucket.bought = true;
+      } else {
+        log(`trader/${label}`, `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${result.reason}`);
+      }
     }
-  }
+  });
 }
 
 function logResult(tag: string, resp: any, bucket: BucketState): void {
