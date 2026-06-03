@@ -92,3 +92,5 @@ for (const ep of ENDPOINTS) {
 }
 
 console.log(`\n========================================\n`);
+
+export {};

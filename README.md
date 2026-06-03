@@ -25,8 +25,10 @@ A primeira resposta que elevar o `ObservedMax` dispara a avaliação dos buckets
 
 O bot opera em dois modos de polling:
 
-- **Warm poll**: fora do hot window, busca METARs a cada 30 s (durante as horas de operação) ou 10 min (fora delas) e mantém o book cache atualizado.
-- **Hot window**: dos 53 min da hora anterior até os 4 min da hora alvo (ex.: 09:53–10:04 para o mercado das 10h), as buscas são contínuas e concorrentes, sem sleep entre ciclos. Cada novo METAR dispara `evaluateBuckets` imediatamente.
+- **Warm poll**: fora do hot window, busca METARs a cada 30 s (durante as horas de operação) ou 10 min (fora delas), mantém o book cache atualizado e prepara ordens assinadas.
+- **Hot window**: dos 53 min da hora anterior até os 4 min da hora alvo (ex.: 09:53–10:04 para o mercado das 10h), cada endpoint roda em loop próprio, contínuo e sem sleep. Cada resposta de METAR é processada assim que chega, sem esperar o outro endpoint.
+- **Book stream**: o cache de asks recebe snapshots e updates pelo websocket de market data do Polymarket, com refresh REST como fallback.
+- **Prewarm**: antes da disputa, o bot aquece metadata do CLOB e pré-assina ordens FAK de limite e market por bucket exact.
 
 ### Fluxo de uma compra
 
@@ -34,14 +36,14 @@ O bot opera em dois modos de polling:
 fetchNoaa / fetchAviationWeather
   └─ handleObs           — atualiza ObservedMax se tempC > atual
        └─ evaluateBuckets — para cada bucket exact onde floor(ObservedMax) > tempC
-            └─ postOrder  — FOK cego (0.99) ou baseado no book cache
+            └─ postOrder  — FAK pré-assinado (0.99) ou baseado no book cache
 ```
 
 As chamadas a `postOrder` para múltiplos buckets são disparadas em paralelo (fire-and-forget no event loop).
 
-### Ordem FOK
+### Ordem FAK
 
-O bot só posta ordens **Fill-or-Kill**. Se o book cache tem asks, consome as ofertas disponíveis até `MAX_STAKE`. Se o book estiver vazio (cache confirmado vazio), posta um FOK cego a 0.99 e marca o bucket como `attempted` permanentemente.
+O bot só posta ordens **Fill-and-Kill**. Se houver ordem pré-assinada para o bucket, ela é usada no hot path para evitar assinatura e chamadas de metadata no momento da disputa. Se o book cache estiver frio, o bot dispara em paralelo um FAK limite a 0.99 e um market FAK com preço limite 0.99. Se o CLOB responder que não havia ordens para preencher, o bucket é marcado como `attempted`.
 
 ---
 
@@ -60,7 +62,7 @@ POLY_SIGNATURE_TYPE=                     # deixar em branco para EOA
 
 # Parâmetros de execução
 MAX_STAKE=4          # USDC máximo por ordem
-MIN_SHARES=5         # mínimo de shares para não pular a ordem (exceto blind FOK)
+MIN_SHARES=5         # mínimo de shares para ordem FAK pré-assinada
 PROD=false           # true: aplica guarda de custo mínimo (≥ $1.00 por ordem)
 DRY_RUN=false        # true: loga tudo mas nunca chama o CLOB
 
@@ -135,8 +137,9 @@ src/
   clob.ts           — inicialização do ClobClient (reutilizado pelo script de simulação)
   hot-window.ts     — loop principal: warm poll + hot window + handleObs
   evaluator.ts      — lógica pura de detecção de Contested NO
-  trader.ts         — postOrder: book cache → dimensionamento → FOK
-  book-cache.ts     — cache de order book atualizado em background
+  trader.ts         — postOrder: book cache → FAK pré-assinado
+  order-cache.ts    — prewarm de metadata CLOB e ordens assinadas
+  book-cache.ts     — cache de order book via REST + websocket
   config.ts         — leitura de env vars
   logger.ts         — log formatado em BRT
   types.ts          — BucketState, ObservationResult

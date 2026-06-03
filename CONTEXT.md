@@ -5,7 +5,7 @@ A standalone bot that monitors Polymarket temperature bucket markets and buys NO
 ## Language
 
 **Hot Window**:
-The 10-minute bracket around each Target Hour — from minute 53 of the previous hour through minute 04 of the target hour — during which METAR fetches race concurrently and buckets are evaluated immediately on every new observation.
+The 10-minute bracket around each Target Hour — from minute 53 of the previous hour through minute 04 of the target hour — during which METAR fetches race concurrently and buckets are evaluated immediately when each source returns. The faster source must never wait for the slower source.
 _Avoid_: fast lane, transition window, polling window
 
 **Target Hour**:
@@ -43,6 +43,14 @@ _Avoid_: FOK, immediate-or-cancel, market order
 **Blind Experiment**:
 When the book cache is null (cold start or stale), the bot fires two FAK orders in parallel for the same bucket: a limit FAK at 0.99 and a `createAndPostMarketOrder` FAK. Both results are logged so fill price and execution quality can be compared empirically to inform future strategy.
 _Avoid_: blind FOK, fallback order
+
+**Prewarm**:
+Before a Hot Window, the bot warms CLOB market metadata and pre-signs one limit FAK plus one market FAK for each exact Bucket. On trigger, the hot path should post prepared orders instead of signing or fetching metadata.
+_Avoid_: lazy signing, cold order creation
+
+**Book Stream**:
+The websocket market data subscription that keeps Bucket asks fresh with `book` snapshots and `price_change` updates. REST `getOrderBook` remains a fallback refresh, not the primary hot-path source of truth.
+_Avoid_: polling-only cache, stale book cache
 
 **BRT** (Brasília Time):
 UTC−3, used throughout for date resolution, hot-window detection, and daily reset. Brazil abolished DST in 2019 so this offset is fixed year-round for all supported cities.
