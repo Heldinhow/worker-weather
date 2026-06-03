@@ -80,9 +80,10 @@ export async function postOrder(
     );
 
     const resp = await clob.postOrder(order, OrderType.FOK);
-    const status: string = resp?.status ?? "unknown";
+    const status: string = String(resp?.status ?? "unknown");
+    const errDetail: string = resp?.errorMsg || resp?.error || "";
 
-    log("trader", `result=${status} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
+    log("trader", `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
 
     if (status === "matched") {
       bucket.bought = true;
