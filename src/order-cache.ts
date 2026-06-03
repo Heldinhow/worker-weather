@@ -25,6 +25,7 @@ function gcd(a: number, b: number): number {
 // FAK orders require price * shares to have <= 2 decimal places.
 // For price p = a/100, the minimum valid share step is 1/gcd(a,100).
 export function snapShares(shares: number, price: number): number {
+  if (price === LIMIT_PRICE) return Math.floor(shares);
   const a = Math.round(price * 100);
   const step = 1 / gcd(a, 100);
   return Math.floor(shares / step) * step;

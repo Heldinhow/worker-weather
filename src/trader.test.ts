@@ -61,7 +61,6 @@ describe("postOrder", () => {
     expect(createAndPostMarketOrderCalls).toBe(0);
     expect(posted).toEqual([
       { kind: "limit", tokenID: "token-trader" },
-      { kind: "market", tokenID: "token-trader" },
     ]);
     expect(bucket.bought).toBe(true);
     expect(bucket.pendingBuy).toBe(false);

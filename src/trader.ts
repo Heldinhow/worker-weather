@@ -1,8 +1,8 @@
 import { type ClobClient, Side, OrderType } from "@polymarket/clob-client-v2";
 import type { BucketState } from "./types.ts";
 import type { Config } from "./config.ts";
-import { getCachedAsks } from "./book-cache.ts";
-import { getPreparedOrders, limitShares, LIMIT_PRICE, snapShares } from "./order-cache.ts";
+import { getCachedAsks, getCachedAsksFast } from "./book-cache.ts";
+import { getPreparedOrders, limitShares, LIMIT_PRICE, snapShares, type PreparedOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
 
 export async function postOrder(
@@ -10,6 +10,29 @@ export async function postOrder(
   bucket: BucketState,
   config: Config,
 ): Promise<void> {
+  const prepared = getPreparedOrders(bucket.noTokenId);
+  if (prepared) {
+    // Fast path: prepared order ready — skip book analysis, sweep math, getCachedAsks branching and try/finally overhead.
+    // When prepared orders exist, always use the prepared limit FAK regardless of book state.
+    // This is strictly better than blind experiment (which fires an extra market FAK) and
+    // eliminates all cache-state branches from the hot path.
+    const cachedAsks = getCachedAsksFast(bucket.noTokenId);
+    const reason = cachedAsks === null ? "prepared-blind" : cachedAsks.length === 0 ? "prepared-empty" : "prepared-sweep";
+    if (config.dryRun) {
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${prepared.shares} [DRY RUN]`);
+      bucket.bought = true;
+    } else {
+      const submit = clob.postOrder(prepared.limitOrder, OrderType.FAK);
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${prepared.shares} prepared=true`);
+      const resp = await submit;
+      logResult("trader", resp, bucket);
+      if (String(resp?.status ?? "") === "matched") bucket.bought = true;
+    }
+    bucket.pendingBuy = false;
+    return;
+  }
+
+  // Slow path: no prepared orders
   try {
     const cachedAsks = getCachedAsks(bucket.noTokenId);
 
@@ -19,7 +42,7 @@ export async function postOrder(
     }
 
     if (cachedAsks === null) {
-      await postBlindExperiment(clob, bucket, config);
+      await postBlindExperiment(clob, bucket, config, undefined);
       return;
     }
 
@@ -40,7 +63,6 @@ export async function postOrder(
     }
 
     const sharesRounded = Math.max(config.minShares, snapShares(shares, LIMIT_PRICE));
-
     await postLimitFak(clob, bucket, config, sharesRounded, "book-sweep");
 
   } catch (err) {
@@ -84,6 +106,7 @@ function postBlindExperiment(
   clob: ClobClient,
   bucket: BucketState,
   config: Config,
+  prepared: PreparedOrders | undefined,
 ): Promise<void> {
   const shares = limitShares(config);
 
@@ -93,7 +116,6 @@ function postBlindExperiment(
     return Promise.resolve();
   }
 
-  const prepared = getPreparedOrders(bucket.noTokenId);
   const limitSubmit = (async () => {
     const order = prepared?.limitOrder ?? await clob.createOrder(
       { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: shares, side: Side.BUY },

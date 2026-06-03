@@ -3,10 +3,27 @@ import type { ObservationResult } from "../types.ts";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 function parseMetarTemp(metar: string): number | null {
-  const m = metar.match(/\b(M?\d{2})\/(M?\d{2})\b/);
-  if (!m) return null;
-  const s = m[1]!;
-  return s.startsWith("M") ? -parseFloat(s.slice(1)) : parseFloat(s);
+  // Manual scan for temperature/dewpoint pattern (e.g. 25/18 or M02/M05)
+  // Look for slash surrounded by digits, avoiding regex overhead
+  for (let i = 1; i < metar.length - 1; i++) {
+    if (metar.charCodeAt(i) !== 47) continue; // '/'
+    const before = metar.charCodeAt(i - 1);
+    const after = metar.charCodeAt(i + 1);
+    // Check if pattern is digits/digits or M+digits/M+digits
+    const isDigitBefore = before >= 48 && before <= 57;
+    const isDigitAfter = after >= 48 && after <= 57;
+    const isMbefore = before === 77 && i >= 2 && metar.charCodeAt(i - 2) >= 48 && metar.charCodeAt(i - 2) <= 57;
+    const isMafter = after === 77 && i + 2 < metar.length && metar.charCodeAt(i + 2) >= 48 && metar.charCodeAt(i + 2) <= 57;
+    if ((isDigitBefore || isMbefore) && (isDigitAfter || isMafter)) {
+      // Extract temperature (before slash)
+      let start = i - 1;
+      if (metar.charCodeAt(start) === 77) start--;
+      while (start > 0 && metar.charCodeAt(start - 1) >= 48 && metar.charCodeAt(start - 1) <= 57) start--;
+      const s = metar.slice(start, i);
+      return s.startsWith("M") ? -parseFloat(s.slice(1)) : parseFloat(s);
+    }
+  }
+  return null;
 }
 
 export async function fetchNoaa(icao: string, signal?: AbortSignal): Promise<ObservationResult | null> {

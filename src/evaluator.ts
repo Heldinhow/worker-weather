@@ -4,14 +4,14 @@ import type { BucketState } from "./types.ts";
 export function evaluateBuckets(
   observedMaxTempC: number,
   buckets: BucketState[],
-  postOrder: (tokenId: string) => void,
+  postOrder: (bucket: BucketState) => void,
 ): void {
   const intMax = Math.floor(observedMaxTempC);
   for (const b of buckets) {
     if (b.type !== "exact") continue;
     if (intMax <= b.tempC) break; // sorted asc: all remaining are also not surpassed
     if (b.bought || b.attempted || b.pendingBuy) continue;
-    postOrder(b.noTokenId);
     b.pendingBuy = true;
+    postOrder(b);
   }
 }

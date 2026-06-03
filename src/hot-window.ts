@@ -9,25 +9,42 @@ import { refreshBooks, startBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log, formatBrt } from "./logger.ts";
 
+const DAY_S = 86_400;
+
+function brtHourMin(nowMs: number): { h: number; m: number } {
+  const brtS = Math.floor(nowMs / 1000) - 3 * 3600;
+  const dayS = ((brtS % DAY_S) + DAY_S) % DAY_S;
+  return { h: Math.floor(dayS / 3600), m: Math.floor((dayS % 3600) / 60) };
+}
+
 export function isHotWindow(
   now: Date,
   targetHourBrt: number,
   windowStart: number,
   windowEnd: number,
 ): boolean {
-  const brt = new Date(now.getTime() - 3 * 3600_000);
-  const h = brt.getUTCHours();
-  const m = brt.getUTCMinutes();
+  return isHotWindowMs(now.getTime(), targetHourBrt, windowStart, windowEnd);
+}
+
+function isHotWindowMs(
+  nowMs: number,
+  targetHourBrt: number,
+  windowStart: number,
+  windowEnd: number,
+): boolean {
+  const { h, m } = brtHourMin(nowMs);
   const prevH = (targetHourBrt - 1 + 24) % 24;
   return (h === prevH && m >= windowStart) || (h === targetHourBrt && m <= windowEnd);
 }
 
 function getBrtHour(now: Date): number {
-  return new Date(now.getTime() - 3 * 3600_000).getUTCHours();
+  const brtS = Math.floor(now.getTime() / 1000) - 3 * 3600;
+  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
 function getMetarBrtHour(obs: ObservationResult): number {
-  return new Date(obs.observedAtUtcMs - 3 * 3600_000).getUTCHours();
+  const brtS = Math.floor(obs.observedAtUtcMs / 1000) - 3 * 3600;
+  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
 export async function processObservationFetches(
@@ -50,17 +67,17 @@ export async function runHotObservationLoops(
   onObservation: (obs: ObservationResult | null, source: string) => void,
 ): Promise<void> {
   let stop = false;
-  const controllers = new Set<AbortController>();
+  const controllers: AbortController[] = [];
 
   const stopAll = () => {
     stop = true;
-    for (const controller of controllers) controller.abort();
+    for (let i = 0; i < controllers.length; i++) controllers[i]!.abort();
   };
 
   await Promise.all(sources.map(async ({ source, fetch }) => {
     while (!stop && isActive()) {
       const ac = new AbortController();
-      controllers.add(ac);
+      controllers.push(ac);
       const timeout = setTimeout(() => ac.abort(), 12_000);
 
       try {
@@ -71,7 +88,8 @@ export async function runHotObservationLoops(
         if (obs && shouldStop(obs)) stopAll();
       } finally {
         clearTimeout(timeout);
-        controllers.delete(ac);
+        const idx = controllers.indexOf(ac);
+        if (idx >= 0) controllers.splice(idx, 1);
       }
     }
   }));
@@ -91,18 +109,17 @@ export function handleObs(
     return;
   }
   if (obs.tempC <= ref.value) {
-    log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
+    log(source, `tempC=${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
     return;
   }
 
   const prevValue = ref.value;
   ref.value = obs.tempC;
-  evaluateBuckets(obs.tempC, buckets, tokenId => {
-    const b = bucketMap.get(tokenId);
-    if (b) postOrder(clob, b, config);
+  evaluateBuckets(obs.tempC, buckets, b => {
+    postOrder(clob, b, config);
   });
   const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
-  log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
+  log(source, `tempC=${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
   log(source, `observedMax ${prev} → ${obs.tempC}`);
 }
 
@@ -124,8 +141,8 @@ export async function runHotWindowLoop(
   }
 
   while (Date.now() < deadline) {
-    const now = new Date();
-    const activeHour = city.targetHours.find(h => isHotWindow(now, h, city.hotWindowStart, city.hotWindowEnd));
+    const nowMs = Date.now();
+    const activeHour = city.targetHours.find(h => isHotWindowMs(nowMs, h, city.hotWindowStart, city.hotWindowEnd));
 
     if (activeHour !== undefined) {
       // Ensure book cache is fresh before entering the hot window
@@ -137,7 +154,7 @@ export async function runHotWindowLoop(
 
       const prevHour = (activeHour - 1 + 24) % 24;
 
-      while (isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
+      while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
         await runHotObservationLoops(
           [
             {
@@ -149,14 +166,14 @@ export async function runHotWindowLoop(
               fetch: signal => fetchAviationWeather(city.icao, signal),
             },
           ],
-          () => isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd),
+          () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
           obs => getMetarBrtHour(obs) !== prevHour,
           (obs, source) => handleObs(obs, source, observedMaxRef, bucketMap, buckets, clob, config),
         );
       }
 
       log(city.icao, `hot window closed targetHour=${activeHour}`);
-      while (isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
+      while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
         await Bun.sleep(200);
       }
     } else {
