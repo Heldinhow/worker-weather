@@ -14,13 +14,5 @@
     "targetHours": [10, 11, 12, 13, 14, 15, 16],
     "hotWindowStart": 53,
     "hotWindowEnd": 4
-  },
-  {
-    "slug": "london",
-    "icao": "EGLC",
-    "timezone": "Europe/London",
-    "targetHours": [10, 11, 12, 13, 14, 15, 16],
-    "hotWindowStart": 49,
-    "hotWindowEnd": 3
   }
 ]

@@ -94,6 +94,9 @@ export async function runHotWindowLoop(
       }
 
       log(city.icao, `hot window closed targetHour=${activeHour}`);
+      while (isHotWindow(new Date(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
+        await Bun.sleep(200);
+      }
     } else {
       // Warm poll: METAR fetches + book cache refresh run concurrently
       const [obs1, obs2] = await Promise.all([
