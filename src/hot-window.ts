@@ -58,7 +58,7 @@ export async function runHotWindowLoop(
 
   while (Date.now() < deadline) {
     const now = new Date();
-    const activeHour = config.targetHours.find(h => isHotWindow(now, h));
+    const activeHour = city.targetHours.find(h => isHotWindow(now, h));
 
     if (activeHour !== undefined) {
       // Ensure book cache is fresh before entering the hot window
@@ -94,8 +94,8 @@ export async function runHotWindowLoop(
       handleObs(obs2, `aw/${city.icao}`, observedMaxRef, bucketMap, buckets, clob, config);
 
       const brtH = getBrtHour(new Date());
-      const minH = Math.min(...config.targetHours);
-      const maxH = Math.max(...config.targetHours);
+      const minH = Math.min(...city.targetHours);
+      const maxH = Math.max(...city.targetHours);
       const sleepMs = brtH >= minH && brtH <= maxH ? 30_000 : 600_000;
       await Bun.sleep(sleepMs);
     }
