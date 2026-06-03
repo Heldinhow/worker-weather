@@ -123,4 +123,6 @@ function logResult(tag: string, resp: any, bucket: BucketState): void {
   const status = String(resp?.status ?? "unknown");
   const errDetail: string = resp?.errorMsg || resp?.error || "";
   log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
+  // Book was empty at execution time — another bot swept it; no point retrying.
+  if (status === "400" && errDetail.includes("no orders found")) bucket.attempted = true;
 }
