@@ -30,8 +30,11 @@ export function snapShares(shares: number, price: number): number {
   return Math.floor(shares / step) * step;
 }
 
+const LIMIT_SHARE_STEP = 1 / gcd(Math.round(LIMIT_PRICE * 100), 100);
+
 export function limitShares(config: Config): number {
-  return Math.max(config.minShares, snapShares(config.maxStake / LIMIT_PRICE, LIMIT_PRICE));
+  const shares = config.maxStake / LIMIT_PRICE;
+  return Math.max(config.minShares, Math.floor(shares / LIMIT_SHARE_STEP) * LIMIT_SHARE_STEP);
 }
 
 export function getPreparedOrders(tokenId: string): PreparedOrders | undefined {

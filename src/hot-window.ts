@@ -90,15 +90,20 @@ export function handleObs(
     log(source, "no data");
     return;
   }
-  log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
-  if (obs.tempC <= ref.value) return;
-  const prev = ref.value === -Infinity ? "-∞" : String(ref.value);
-  log(source, `observedMax ${prev} → ${obs.tempC}`);
+  if (obs.tempC <= ref.value) {
+    log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
+    return;
+  }
+
+  const prevValue = ref.value;
   ref.value = obs.tempC;
-  evaluateBuckets(ref.value, buckets, tokenId => {
+  evaluateBuckets(obs.tempC, buckets, tokenId => {
     const b = bucketMap.get(tokenId);
     if (b) postOrder(clob, b, config);
   });
+  const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
+  log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
+  log(source, `observedMax ${prev} → ${obs.tempC}`);
 }
 
 export async function runHotWindowLoop(
