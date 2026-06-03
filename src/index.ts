@@ -3,7 +3,7 @@ import { loadConfig, type CityConfig, type Config } from "./config.ts";
 import { initClobClient } from "./clob.ts";
 import type { BucketState } from "./types.ts";
 import { runHotWindowLoop } from "./hot-window.ts";
-import { log } from "./logger.ts";
+import { log, registerCityColor } from "./logger.ts";
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
@@ -87,6 +87,7 @@ async function runCity(city: CityConfig, config: Config, clob: ClobClient): Prom
 }
 
 const config = loadConfig();
+config.cities.forEach((city, i) => registerCityColor(city.icao, i));
 
 if (config.dryRun) {
   log("boot", "DRY RUN mode — no orders will be posted to the CLOB");
