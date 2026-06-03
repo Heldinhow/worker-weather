@@ -1,0 +1,1 @@
+{"type":"config","name":"Otimizar latência do hot path do weather bot","metricName":"hot_path_p50_us","metricUnit":"µs","bestDirection":"lower"}
