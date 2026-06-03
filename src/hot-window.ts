@@ -20,7 +20,7 @@ function getBrtHour(now: Date): number {
   return new Date(now.getTime() - 3 * 3600_000).getUTCHours();
 }
 
-function handleObs(
+export function handleObs(
   obs: ObservationResult | null,
   source: string,
   ref: { value: number },

@@ -1,6 +1,6 @@
-import { ClobClient, Chain, SignatureTypeV2 } from "@polymarket/clob-client-v2";
-import { Wallet } from "@ethersproject/wallet";
+import type { ClobClient } from "@polymarket/clob-client-v2";
 import { loadConfig, type CityConfig, type Config } from "./config.ts";
+import { initClobClient } from "./clob.ts";
 import type { BucketState } from "./types.ts";
 import { runHotWindowLoop } from "./hot-window.ts";
 import { log } from "./logger.ts";
@@ -72,31 +72,6 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   buckets.sort((a, b) => a.tempC - b.tempC);
 
   return { slug, buckets };
-}
-
-const CLOB_HOST = "https://clob.polymarket.com";
-
-async function initClobClient(config: Config): Promise<ClobClient> {
-  const wallet = new Wallet(config.privateKey);
-  const sigType = config.signatureType !== undefined
-    ? (Number(config.signatureType) as SignatureTypeV2)
-    : SignatureTypeV2.EOA;
-  const base = new ClobClient({
-    host: CLOB_HOST,
-    chain: Chain.POLYGON,
-    signer: wallet as any,
-    signatureType: sigType,
-    funderAddress: config.funderAddress,
-  });
-  const creds = await base.createOrDeriveApiKey();
-  return new ClobClient({
-    host: CLOB_HOST,
-    chain: Chain.POLYGON,
-    signer: wallet as any,
-    creds,
-    signatureType: sigType,
-    funderAddress: config.funderAddress,
-  });
 }
 
 async function runCity(city: CityConfig, config: Config, clob: ClobClient): Promise<void> {
