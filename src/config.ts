@@ -29,7 +29,7 @@ export function loadConfig(): Config {
     cities: cities as CityConfig[],
     maxStake: Number(process.env.MAX_STAKE ?? "4"),
     minShares: Number(process.env.MIN_SHARES ?? "5"),
-    maxNoPrice: Number(process.env.MAX_NO_PRICE ?? "0.95"),
+    maxNoPrice: Number(process.env.MAX_NO_PRICE ?? "0.99"),
     prod: (process.env.PROD ?? "false") === "true",
     dryRun: (process.env.DRY_RUN ?? "false") === "true",
     privateKey,
