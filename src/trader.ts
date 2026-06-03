@@ -4,6 +4,20 @@ import type { Config } from "./config.ts";
 import { getCachedAsks } from "./book-cache.ts";
 import { log } from "./logger.ts";
 
+function gcd(a: number, b: number): number {
+  while (b) { [a, b] = [b, a % b]; }
+  return a;
+}
+
+// FOK orders require price * shares to have ≤ 2 decimal places.
+// For price p = a/100, the minimum valid share step is 1/gcd(a,100).
+// Example: price=0.99 → gcd(99,100)=1 → step=1 (shares must be integer).
+function snapShares(shares: number, price: number): number {
+  const a = Math.round(price * 100);
+  const step = 1 / gcd(a, 100);
+  return Math.floor(shares / step) * step;
+}
+
 export async function postOrder(
   clob: ClobClient,
   bucket: BucketState,
@@ -59,8 +73,8 @@ export async function postOrder(
     }
 
     const priceRounded = Math.round(price * 100) / 100;
-    const sharesRounded = Math.round(shares * 100) / 100;
-    const costRounded = (priceRounded * sharesRounded).toFixed(4);
+    const sharesRounded = snapShares(shares, priceRounded);
+    const costRounded = (priceRounded * sharesRounded).toFixed(2);
 
     log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} price=${priceRounded} shares=${sharesRounded} cost=${costRounded} blind=${blind}${config.dryRun ? " [DRY RUN]" : ""}`);
 
