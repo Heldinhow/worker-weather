@@ -6,7 +6,7 @@ import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
 import { evaluateBuckets } from "./evaluator.ts";
 import { postOrder } from "./trader.ts";
 import { refreshBooks } from "./book-cache.ts";
-import { log } from "./logger.ts";
+import { log, formatBrt } from "./logger.ts";
 
 export function isHotWindow(now: Date, targetHourBrt: number): boolean {
   const brt = new Date(now.getTime() - 3 * 3600_000);
@@ -33,7 +33,7 @@ function handleObs(
     log(source, "no data");
     return;
   }
-  log(source, `tempC=${obs.tempC} metar=${new Date(obs.observedAtUtcMs).toISOString()}`);
+  log(source, `tempC=${obs.tempC} metar=${formatBrt(new Date(obs.observedAtUtcMs))}`);
   if (obs.tempC <= ref.value) return;
   const prev = ref.value === -Infinity ? "-∞" : String(ref.value);
   log(source, `observedMax ${prev} → ${obs.tempC}`);
