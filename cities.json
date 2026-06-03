@@ -4,5 +4,11 @@
     "icao": "SBGR",
     "timezone": "America/Sao_Paulo",
     "targetHours": [10, 11, 12, 13, 14, 15, 16]
+  },
+  {
+    "slug": "buenos-aires",
+    "icao": "SAEZ",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "targetHours": [10, 11, 12, 13, 14, 15, 16]
   }
 ]
