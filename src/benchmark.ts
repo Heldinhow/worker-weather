@@ -71,6 +71,7 @@ function percentile(sorted: number[], p: number): number {
 }
 
 async function runBenchmark(): Promise<void> {
+  const benchmarkStart = performance.now();
   const config = loadConfig();
   const clob = await initClobClient(config);
 
@@ -84,6 +85,7 @@ async function runBenchmark(): Promise<void> {
   await prewarmPromise;
   await Bun.sleep(1000);
 
+  const initMs = performance.now() - benchmarkStart;
   const preparedHitRate = exactTokenIds.filter(id => getPreparedOrders(id)).length / exactTokenIds.length;
 
   const originalPostOrder = clob.postOrder.bind(clob);
@@ -159,6 +161,7 @@ async function runBenchmark(): Promise<void> {
   console.log(`METRIC trader_fastpath_us=${Math.round(traderP50 * 1000)}`);
   console.log(`METRIC prepared_hit_rate=${preparedHitRate}`);
   console.log(`METRIC book_cache_hit_rate=${bookCacheHitRate}`);
+  console.log(`METRIC init_ms=${Math.round(initMs * 10) / 10}`);
   console.log(`METRIC fetcher_noaa_ms=${Math.round(noaaMs * 10) / 10}`);
   console.log(`METRIC fetcher_aw_ms=${Math.round(awMs * 10) / 10}`);
 

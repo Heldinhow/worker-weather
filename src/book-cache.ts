@@ -72,12 +72,18 @@ function isAskSide(side: unknown): boolean {
 }
 
 function applyAskChange(tokenId: string, price: string, size: string): void {
-  const existing = cache.get(tokenId)?.asks ?? [];
-  const next = existing.filter(ask => ask.price !== price);
+  const entry = cache.get(tokenId);
+  const next = entry ? entry.asks : [];
+
+  // Remove existing level with same price (in-place)
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i]!.price === price) {
+      next.splice(i, 1);
+    }
+  }
 
   if (Number(size) > 0) {
     const p = Number(price);
-    // Insert in sorted position instead of push + sort
     let inserted = false;
     for (let i = 0; i < next.length; i++) {
       if (Number(next[i]!.price) > p) {
@@ -171,7 +177,8 @@ export function startBookStream(tokenIds: string[], label: string): void {
 
     ws.onmessage = event => {
       try {
-        applyMarketMessage(JSON.parse(String(event.data)));
+        const text = typeof event.data === "string" ? event.data : String(event.data);
+        applyMarketMessage(JSON.parse(text));
       } catch {
         // Ignore malformed websocket frames; REST refresh remains the fallback.
       }

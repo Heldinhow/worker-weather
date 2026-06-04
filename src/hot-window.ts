@@ -123,6 +123,7 @@ export function handleObs(
   const prevValue = ref.value;
   ref.value = obs.tempC;
   const detectedAtMs = Date.now();
+  const t0 = performance.now();
 
   updateCity(icao, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
 
@@ -130,8 +131,9 @@ export function handleObs(
     postOrder(clob, b, config);
   });
 
+  const elapsedUs = Math.round((performance.now() - t0) * 1000);
   const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
-  log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
+  log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} hotPath=${elapsedUs}µs`);
 }
 
 export async function runHotWindowLoop(
@@ -201,9 +203,11 @@ export async function runHotWindowLoop(
       if (refreshInterval) clearInterval(refreshInterval);
 
       log(city.icao, `hot window closed targetHour=${activeHour}`);
-      while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
-        await Bun.sleep(200);
-      }
+      // Calculate exact ms remaining in this hot window and sleep once
+      const closeS = activeHour * 3600 + city.hotWindowEnd * 60;
+      const nowS = brtSecondsSinceMidnight(Date.now());
+      const remainingMs = Math.max(0, (closeS - nowS) * 1000 + 100); // +100ms buffer
+      if (remainingMs > 0) await Bun.sleep(remainingMs);
     } else {
       await Promise.all([
         processObservationFetches(

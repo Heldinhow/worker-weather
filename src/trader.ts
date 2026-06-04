@@ -5,6 +5,8 @@ import { getCachedAsks, getCachedAsksFast } from "./book-cache.ts";
 import { getPreparedOrders, limitShares, LIMIT_PRICE, snapShares, type PreparedOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
 
+const LIMIT_PRICE_STR = String(LIMIT_PRICE);
+
 export async function postOrder(
   clob: ClobClient,
   bucket: BucketState,
@@ -16,12 +18,14 @@ export async function postOrder(
     // When prepared orders exist, always use the prepared limit FAK regardless of book state.
     // This is strictly better than blind experiment (which fires an extra market FAK) and
     // eliminates all cache-state branches from the hot path.
+    const t0 = performance.now();
     if (config.dryRun) {
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE} shares=${prepared.shares} [DRY RUN]`);
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} [DRY RUN]`);
       bucket.bought = true;
     } else {
       const submit = clob.postOrder(prepared.limitOrder, OrderType.FAK);
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE} shares=${prepared.shares} prepared=true`);
+      const elapsedUs = Math.round((performance.now() - t0) * 1000);
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} prepared=true hotPath=${elapsedUs}µs`);
       const resp = await submit;
       logResult("trader", resp, bucket);
       if (String(resp?.status ?? "") === "matched") bucket.bought = true;
@@ -81,7 +85,7 @@ async function postLimitFak(
   const orderShares = prepared?.shares ?? shares;
 
   if (config.dryRun) {
-    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${orderShares} [DRY RUN]`);
+    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares} [DRY RUN]`);
     bucket.bought = true;
     return;
   }
@@ -94,7 +98,7 @@ async function postLimitFak(
     );
 
   const submit = clob.postOrder(order, OrderType.FAK);
-  log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${orderShares}${prepared ? " prepared=true" : ""}`);
+  log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares}${prepared ? " prepared=true" : ""}`);
   const resp = await submit;
   logResult("trader", resp, bucket);
   if (String(resp?.status ?? "") === "matched") bucket.bought = true;
@@ -109,7 +113,7 @@ function postBlindExperiment(
   const shares = limitShares(config);
 
   if (config.dryRun) {
-    log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake} [DRY RUN]`);
+    log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake} [DRY RUN]`);
     bucket.bought = true;
     return Promise.resolve();
   }
@@ -128,7 +132,7 @@ function postBlindExperiment(
       { tickSize: "0.01", negRisk: bucket.negRisk },
       OrderType.FAK,
     );
-  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE} shares=${shares} market-fak amount=${config.maxStake}${prepared ? " prepared=true" : ""}`);
+  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake}${prepared ? " prepared=true" : ""}`);
 
   return Promise.allSettled([
     limitSubmit,
