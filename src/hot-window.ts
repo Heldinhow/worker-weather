@@ -5,7 +5,7 @@ import { fetchNoaa } from "./fetchers/noaa.ts";
 import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
 import { evaluateBuckets } from "./evaluator.ts";
 import { postOrder } from "./trader.ts";
-import { refreshBooks, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
+import { refreshBooks, startBookStream, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
 import { formatBrt, isHotWindow, isHotWindowMs } from "./time.ts";
@@ -146,6 +146,10 @@ export async function runHotWindowLoop(
   const wsKey = [...exactTokenIds].sort().join(",");
 
   if (!config.dryRun) {
+    startBookStream(exactTokenIds, city.icao);
+    // Give the WS a moment to connect before we proceed. 300ms is usually
+    // enough for the handshake + initial book snapshot on a warm connection.
+    await Bun.sleep(300);
     // Ensure prepared orders are ready before we enter the hot window.
     // Slow path (on-the-fly createOrder) adds 50–200ms which loses races.
     await prepareOrders(clob, buckets, config);
