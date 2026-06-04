@@ -92,7 +92,7 @@ export async function runHotObservationLoops(
     while (!stop && isActive()) {
       const ac = new AbortController();
       controllers.push(ac);
-      const timeout = setTimeout(() => ac.abort(), 12_000);
+      const timeout = setTimeout(() => ac.abort(), 5_000);
 
       try {
         const obs = await fetch(ac.signal).catch(() => null);

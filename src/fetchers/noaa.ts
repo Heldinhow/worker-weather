@@ -31,7 +31,7 @@ export async function fetchNoaa(icao: string, signal?: AbortSignal): Promise<Obs
   let timeout: ReturnType<typeof setTimeout> | undefined;
   if (!fetchSignal) {
     const ac = new AbortController();
-    timeout = setTimeout(() => ac.abort(), 12_000);
+    timeout = setTimeout(() => ac.abort(), 5_000);
     fetchSignal = ac.signal;
   }
 

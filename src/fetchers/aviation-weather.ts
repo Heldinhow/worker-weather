@@ -25,7 +25,7 @@ export async function fetchAviationWeather(icao: string, signal?: AbortSignal): 
   let timeout: ReturnType<typeof setTimeout> | undefined;
   if (!fetchSignal) {
     const ac = new AbortController();
-    timeout = setTimeout(() => ac.abort(), 12_000);
+    timeout = setTimeout(() => ac.abort(), 5_000);
     fetchSignal = ac.signal;
   }
 
