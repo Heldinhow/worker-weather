@@ -66,10 +66,19 @@ function applyAskChange(tokenId: string, price: string, size: string): void {
   const next = existing.filter(ask => ask.price !== price);
 
   if (Number(size) > 0) {
-    next.push({ price, size });
+    const p = Number(price);
+    // Insert in sorted position instead of push + sort
+    let inserted = false;
+    for (let i = 0; i < next.length; i++) {
+      if (Number(next[i]!.price) > p) {
+        next.splice(i, 0, { price, size });
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted) next.push({ price, size });
   }
 
-  next.sort((a, b) => Number(a.price) - Number(b.price));
   cache.set(tokenId, { asks: next, fetchedAt: Date.now() });
 }
 
