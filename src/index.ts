@@ -12,7 +12,7 @@ function getMsUntilMidnightBrt(): number {
   const brtMs = now - 3 * 3600_000;
   const dayMs = 86_400_000;
   const tomorrowStartBrt = Math.floor(brtMs / dayMs) * dayMs + dayMs;
-  return tomorrowStartBrt - brtMs + 3 * 3600_000;
+  return tomorrowStartBrt - brtMs;
 }
 
 interface GammaMarket {
