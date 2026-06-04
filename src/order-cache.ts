@@ -67,7 +67,9 @@ export async function prepareOrders(
   const tasks = exactBuckets.map(bucket => {
     const options = { tickSize: "0.01" as const, negRisk: bucket.negRisk };
     const task = (async () => {
-      await clob.getClobMarketInfo(bucket.conditionId).catch(() => undefined);
+      // getClobMarketInfo is a warm-up / side-effect call; its result is unused.
+      // Run it in parallel with order creation so it doesn't block the critical path.
+      const marketInfoPromise = clob.getClobMarketInfo(bucket.conditionId).catch(() => undefined);
       const [limitOrder, marketOrder] = await Promise.all([
         clob.createOrder(
           { tokenID: bucket.noTokenId, price: LIMIT_PRICE, size: shares, side: Side.BUY },
@@ -78,6 +80,7 @@ export async function prepareOrders(
           options,
         ),
       ]);
+      await marketInfoPromise; // ensure it settled (no-op on success/failure)
 
       preparedOrders.set(bucket.noTokenId, { limitOrder, marketOrder, shares });
     })().finally(() => {
