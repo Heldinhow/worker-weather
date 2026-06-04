@@ -147,9 +147,13 @@ export async function runHotWindowLoop(
 
   if (!config.dryRun) {
     startBookStream(exactTokenIds, city.icao);
-    // Give the WS a moment to connect before we proceed. 300ms is usually
-    // enough for the handshake + initial book snapshot on a warm connection.
-    await Bun.sleep(300);
+    // If we're already inside a hot window, don't sleep — start fetching
+    // immediately. The 300ms settle is only needed when we have time before
+    // the window opens.
+    const inWindowNow = city.targetHours.some(h =>
+      isHotWindowMs(Date.now(), h, city.hotWindowStart, city.hotWindowEnd)
+    );
+    if (!inWindowNow) await Bun.sleep(300);
     // Warm-up HTTP connections in parallel with prepareOrders — both are
     // independent and the fetcher warm-up takes ~700ms cold. Overlapping
     // shaves that time off the critical path before the hot window opens.
