@@ -9,14 +9,10 @@ import { todaySlug } from "./time.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();
-  const brt = new Date(now - 3 * 3600_000);
-  const nextMidnightUtc = Date.UTC(
-    brt.getUTCFullYear(),
-    brt.getUTCMonth(),
-    brt.getUTCDate() + 1,
-    3, 0, 0, 0,
-  );
-  return nextMidnightUtc - now;
+  const brtMs = now - 3 * 3600_000;
+  const dayMs = 86_400_000;
+  const tomorrowStartBrt = Math.floor(brtMs / dayMs) * dayMs + dayMs;
+  return tomorrowStartBrt - brtMs + 3 * 3600_000;
 }
 
 interface GammaMarket {
