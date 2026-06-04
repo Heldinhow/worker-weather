@@ -114,7 +114,7 @@ export function handleObs(
   icao: string,
   ref: { value: number },
   bucketMap: Map<string, BucketState>,
-  buckets: BucketState[],
+  tradeBuckets: BucketState[],
   clob: ClobClient,
   config: Config,
 ): void {
@@ -127,7 +127,7 @@ export function handleObs(
 
   updateCity(icao, { observedMax: obs.tempC, metarTimestampMs: obs.observedAtUtcMs, detectedAtMs });
 
-  evaluateBuckets(obs.tempC, buckets, b => {
+  evaluateBuckets(obs.tempC, tradeBuckets, b => {
     postOrder(clob, b, config);
   });
 
@@ -144,7 +144,9 @@ export async function runHotWindowLoop(
   deadline: number,
 ): Promise<void> {
   const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
-  const exactTokenIds = buckets.filter(b => b.type === "exact").map(b => b.noTokenId);
+  const exactBuckets = buckets.filter(b => b.type === "exact");
+  const exactTokenIds = exactBuckets.map(b => b.noTokenId);
+  const wsKey = [...exactTokenIds].sort().join(",");
 
   if (!config.dryRun) {
     startBookStream(exactTokenIds, city.icao);
@@ -165,7 +167,6 @@ export async function runHotWindowLoop(
       if (!config.dryRun) {
         void refreshBooks(clob, exactTokenIds);
         void prepareOrders(clob, buckets, config);
-        const wsKey = exactTokenIds.slice().sort().join(",");
         if (!isBookStreamConnected(wsKey)) {
           forceReconnectBookStream(wsKey);
         }
@@ -192,7 +193,7 @@ export async function runHotWindowLoop(
           ],
           () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
           obs => getMetarBrtHour(obs) !== prevHour,
-          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, buckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
         );
       }
 
@@ -209,7 +210,7 @@ export async function runHotWindowLoop(
             { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
             { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
           ],
-          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, buckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
         ),
         config.dryRun ? Promise.resolve() : refreshBooks(clob, exactTokenIds),
       ]);

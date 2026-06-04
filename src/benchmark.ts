@@ -93,6 +93,8 @@ async function runBenchmark(): Promise<void> {
     return Promise.resolve({ status: "matched" }) as any;
   };
 
+
+
   const N = 1000;
   const detectionToSubmit: number[] = [];
   const evaluatorTimes: number[] = [];
@@ -129,18 +131,18 @@ async function runBenchmark(): Promise<void> {
 
   clob.postOrder = originalPostOrder;
 
-  // Fetcher latency (with 5s timeout each)
+  // Fetcher latency (with 8s timeout each to tolerate slow network during benchmark)
   const fetchWithTimeout = <T>(fn: () => Promise<T>, ms: number): Promise<T | null> =>
     Promise.race([fn(), Bun.sleep(ms).then(() => null)]);
 
   const noaaStart = performance.now();
   const awStart = performance.now();
   const [noaaResult, awResult] = await Promise.all([
-    fetchWithTimeout(() => fetchNoaa(city.icao), 5000),
-    fetchWithTimeout(() => fetchAviationWeather(city.icao), 5000),
+    fetchWithTimeout(() => fetchNoaa(city.icao), 8000),
+    fetchWithTimeout(() => fetchAviationWeather(city.icao), 8000),
   ]);
-  const noaaMs = noaaResult === null ? 5000 : performance.now() - noaaStart;
-  const awMs = awResult === null ? 5000 : performance.now() - awStart;
+  const noaaMs = noaaResult === null ? 8000 : performance.now() - noaaStart;
+  const awMs = awResult === null ? 8000 : performance.now() - awStart;
 
   const dtsSorted = [...detectionToSubmit].sort((a, b) => a - b);
   const evalSorted = [...evaluatorTimes].sort((a, b) => a - b);
