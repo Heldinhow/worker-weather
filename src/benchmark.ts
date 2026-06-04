@@ -83,7 +83,7 @@ async function runBenchmark(): Promise<void> {
   const prewarmPromise = prepareOrders(clob, buckets, config);
   await refreshBooks(clob, exactTokenIds);
   await prewarmPromise;
-  await Bun.sleep(1000);
+  await Bun.sleep(300);
 
   const initMs = performance.now() - benchmarkStart;
   const preparedHitRate = exactTokenIds.filter(id => getPreparedOrders(id)).length / exactTokenIds.length;
