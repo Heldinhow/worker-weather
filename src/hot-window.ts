@@ -169,6 +169,10 @@ export async function runHotWindowLoop(
 
       const prevHour = (activeHour - 1 + 24) % 24;
 
+      const refreshInterval = !config.dryRun
+        ? setInterval(() => refreshBooks(clob, exactTokenIds).catch(() => undefined), 10_000)
+        : undefined;
+
       while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
         await runHotObservationLoops(
           [
@@ -186,6 +190,8 @@ export async function runHotWindowLoop(
           (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, buckets, clob, config),
         );
       }
+
+      if (refreshInterval) clearInterval(refreshInterval);
 
       log(city.icao, `hot window closed targetHour=${activeHour}`);
       while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
