@@ -5,19 +5,7 @@ import type { BucketState } from "./types.ts";
 import { runHotWindowLoop } from "./hot-window.ts";
 import { log, registerCityColor } from "./logger.ts";
 import { startDashboard } from "./dashboard.ts";
-
-const MONTHS = [
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-];
-
-function todaySlug(citySlug: string): string {
-  const brt = new Date(Date.now() - 3 * 3600_000);
-  const month = MONTHS[brt.getUTCMonth()]!;
-  const day = brt.getUTCDate();
-  const year = brt.getUTCFullYear();
-  return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
-}
+import { todaySlug } from "./time.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();

@@ -9,19 +9,7 @@ import { prepareOrders, getPreparedOrders } from "./order-cache.ts";
 import { refreshBooks, startBookStream, getCachedAsksFast, applyMarketMessage } from "./book-cache.ts";
 import type { BucketState, ObservationResult } from "./types.ts";
 import { log } from "./logger.ts";
-
-const MONTHS = [
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-];
-
-function todaySlug(citySlug: string): string {
-  const brt = new Date(Date.now() - 3 * 3600_000);
-  const month = MONTHS[brt.getUTCMonth()]!;
-  const day = brt.getUTCDate();
-  const year = brt.getUTCFullYear();
-  return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
-}
+import { todaySlug } from "./time.ts";
 
 interface GammaMarket {
   question: string;

@@ -1,5 +1,18 @@
 const DAY_S = 86_400;
 
+const MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+export function todaySlug(citySlug: string): string {
+  const brt = new Date(Date.now() - 3 * 3600_000);
+  const month = MONTHS[brt.getUTCMonth()]!;
+  const day = brt.getUTCDate();
+  const year = brt.getUTCFullYear();
+  return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
+}
+
 let lastFormatMs = -1;
 let lastFormatResult = "";
 
