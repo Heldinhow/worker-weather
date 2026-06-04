@@ -6,6 +6,7 @@ import { runHotWindowLoop } from "./hot-window.ts";
 import { log, registerCityColor } from "./logger.ts";
 import { startDashboard } from "./dashboard.ts";
 import { todaySlug } from "./time.ts";
+import { startBookStream } from "./book-cache.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();
@@ -59,9 +60,8 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   return { slug, buckets };
 }
 
-async function runCity(city: CityConfig, config: Config, clob: ClobClient): Promise<void> {
+async function runCity(city: CityConfig, config: Config, clob: ClobClient, buckets: BucketState[]): Promise<void> {
   while (true) {
-    const { buckets } = await resolveSlugAndMarkets(city);
     const observedMaxRef = { value: -Infinity };
     const deadline = Date.now() + getMsUntilMidnightBrt();
 
@@ -83,4 +83,20 @@ const clob = config.dryRun
   ? null as unknown as ClobClient
   : await initClobClient(config);
 
-await Promise.all(config.cities.map(city => runCity(city, config, clob)));
+// Resolve markets for all cities once per day
+const cityBuckets = new Map<string, BucketState[]>();
+const allExactTokenIds: string[] = [];
+for (const city of config.cities) {
+  const { buckets } = await resolveSlugAndMarkets(city);
+  cityBuckets.set(city.icao, buckets);
+  const exact = buckets.filter(b => b.type === "exact").map(b => b.noTokenId);
+  allExactTokenIds.push(...exact);
+}
+
+// Start a single shared book stream for all cities to reduce WS connection overhead
+if (!config.dryRun && allExactTokenIds.length > 0) {
+  startBookStream([...new Set(allExactTokenIds)], "all");
+  await Bun.sleep(300);
+}
+
+await Promise.all(config.cities.map(city => runCity(city, config, clob, cityBuckets.get(city.icao)!)));
