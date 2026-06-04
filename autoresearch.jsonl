@@ -1,1 +1,2 @@
 {"type":"config","name":"Otimizar latência do hot path do weather bot","metricName":"hot_path_p50_us","metricUnit":"µs","bestDirection":"lower"}
+{"type":"config","name":"Weather Bot — Detection-to-Trade Latency","metricName":"detection_to_submit_p50_us","metricUnit":"µs","bestDirection":"lower"}
