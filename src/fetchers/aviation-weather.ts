@@ -31,7 +31,7 @@ export async function fetchAviationWeather(icao: string, signal?: AbortSignal): 
 
   try {
     const resp = await fetch(
-      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&metar=true&hours=3&_=${Date.now()}`,
+      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&metar=true&hours=1&_=${Date.now()}`,
       {
         signal: fetchSignal,
         headers: { "Accept": "application/json", "User-Agent": UA },
