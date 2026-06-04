@@ -16,14 +16,12 @@ export async function postOrder(
     // When prepared orders exist, always use the prepared limit FAK regardless of book state.
     // This is strictly better than blind experiment (which fires an extra market FAK) and
     // eliminates all cache-state branches from the hot path.
-    const cachedAsks = getCachedAsksFast(bucket.noTokenId);
-    const reason = cachedAsks === null ? "prepared-blind" : cachedAsks.length === 0 ? "prepared-empty" : "prepared-sweep";
     if (config.dryRun) {
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${prepared.shares} [DRY RUN]`);
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE} shares=${prepared.shares} [DRY RUN]`);
       bucket.bought = true;
     } else {
       const submit = clob.postOrder(prepared.limitOrder, OrderType.FAK);
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE} shares=${prepared.shares} prepared=true`);
+      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE} shares=${prepared.shares} prepared=true`);
       const resp = await submit;
       logResult("trader", resp, bucket);
       if (String(resp?.status ?? "") === "matched") bucket.bought = true;

@@ -119,10 +119,10 @@ export async function runHotWindowLoop(
     const activeHour = city.targetHours.find(h => isHotWindowMs(nowMs, h, city.hotWindowStart, city.hotWindowEnd));
 
     if (activeHour !== undefined) {
-      if (!config.dryRun) await Promise.all([
-        refreshBooks(clob, exactTokenIds),
-        prepareOrders(clob, buckets, config),
-      ]);
+      if (!config.dryRun) {
+        void refreshBooks(clob, exactTokenIds);
+        void prepareOrders(clob, buckets, config);
+      }
       log(city.icao, `hot window open targetHour=${activeHour}`);
 
       const prevHour = (activeHour - 1 + 24) % 24;
