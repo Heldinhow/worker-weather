@@ -177,7 +177,7 @@ export async function runHotWindowLoop(
       const prevHour = (activeHour - 1 + 24) % 24;
 
       const refreshInterval = !config.dryRun
-        ? setInterval(() => refreshBooks(clob, exactTokenIds).catch(() => undefined), 10_000)
+        ? setInterval(() => refreshBooks(clob, exactTokenIds).catch(() => undefined), 5_000)
         : undefined;
 
       while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {

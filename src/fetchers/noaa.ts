@@ -41,6 +41,7 @@ export async function fetchNoaa(icao: string, signal?: AbortSignal): Promise<Obs
       {
         signal: fetchSignal,
         headers: { "Cache-Control": "no-cache", "User-Agent": UA },
+        keepalive: true,
       },
     );
     if (timeout) clearTimeout(timeout);
