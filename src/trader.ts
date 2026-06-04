@@ -2,7 +2,7 @@ import { type ClobClient, Side, OrderType } from "@polymarket/clob-client-v2";
 import type { BucketState } from "./types.ts";
 import type { Config } from "./config.ts";
 import { getCachedAsks, getCachedAsksFast } from "./book-cache.ts";
-import { getPreparedOrders, limitShares, LIMIT_PRICE, snapShares, type PreparedOrders } from "./order-cache.ts";
+import { getPreparedOrders, getPreparedYesOrder, getPreparedPeakNoOrder, limitShares, LIMIT_PRICE, YES_LIMIT_PRICE, PEAK_NO_LIMIT_PRICE, snapShares, type PreparedOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
 
 const LIMIT_PRICE_STR = String(LIMIT_PRICE);
@@ -147,6 +147,58 @@ function postBlindExperiment(
       }
     }
   });
+}
+
+export function postPeakOrders(
+  clob: ClobClient,
+  yesBucket: BucketState,
+  noBucket: BucketState | undefined,
+  config: Config,
+): void {
+  void postPeakYes(clob, yesBucket, config);
+  if (noBucket) void postPeakNo(clob, noBucket, config);
+}
+
+async function postPeakYes(clob: ClobClient, bucket: BucketState, config: Config): Promise<void> {
+  const prepared = getPreparedYesOrder(bucket.yesTokenId);
+  if (config.dryRun) {
+    log("peak/yes", `attempt yesTokenId=${bucket.yesTokenId} tempC=${bucket.tempC} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
+    return;
+  }
+  const t0 = performance.now();
+  const order = prepared?.limitOrder ?? await clob.createOrder(
+    { tokenID: bucket.yesTokenId, price: YES_LIMIT_PRICE, size: config.maxStake / YES_LIMIT_PRICE, side: Side.BUY },
+    { tickSize: "0.01", negRisk: bucket.negRisk },
+  );
+  const submit = clob.postOrder(order, OrderType.FAK);
+  const elapsedUs = Math.round((performance.now() - t0) * 1000);
+  log("peak/yes", `attempt yesTokenId=${bucket.yesTokenId} tempC=${bucket.tempC} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
+  const resp = await submit;
+  logPeakResult("peak/yes", resp, bucket.yesTokenId, bucket.tempC);
+}
+
+async function postPeakNo(clob: ClobClient, bucket: BucketState, config: Config): Promise<void> {
+  const prepared = getPreparedPeakNoOrder(bucket.noTokenId);
+  if (config.dryRun) {
+    log("peak/no", `attempt noTokenId=${bucket.noTokenId} tempC=${bucket.tempC} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
+    return;
+  }
+  const t0 = performance.now();
+  const order = prepared?.limitOrder ?? await clob.createOrder(
+    { tokenID: bucket.noTokenId, price: PEAK_NO_LIMIT_PRICE, size: config.maxStake / PEAK_NO_LIMIT_PRICE, side: Side.BUY },
+    { tickSize: "0.01", negRisk: bucket.negRisk },
+  );
+  const submit = clob.postOrder(order, OrderType.FAK);
+  const elapsedUs = Math.round((performance.now() - t0) * 1000);
+  log("peak/no", `attempt noTokenId=${bucket.noTokenId} tempC=${bucket.tempC} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
+  const resp = await submit;
+  logPeakResult("peak/no", resp, bucket.noTokenId, bucket.tempC);
+}
+
+function logPeakResult(tag: string, resp: any, tokenId: string, tempC: number): void {
+  const status = String(resp?.status ?? "unknown");
+  const errDetail: string = resp?.errorMsg || resp?.error || "";
+  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${tokenId} tempC=${tempC}`);
 }
 
 function logResult(tag: string, resp: any, bucket: BucketState): void {

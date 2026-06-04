@@ -13,17 +13,20 @@ const config: Config = {
   privateKey: "0x0",
   funderAddress: undefined,
   signatureType: undefined,
+  strategy: "no" as const,
 };
 
 const exactBucket: BucketState = {
   tempC: 20,
   type: "exact",
   noTokenId: "token-20",
+  yesTokenId: "yes-token-20",
   conditionId: "condition-20",
   negRisk: true,
   bought: false,
   attempted: false,
   pendingBuy: false,
+  peakBought: false,
 };
 
 describe("limitShares", () => {

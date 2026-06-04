@@ -4,6 +4,8 @@ import type { BucketState } from "./types.ts";
 import { log } from "./logger.ts";
 
 export const LIMIT_PRICE = 0.99;
+export const YES_LIMIT_PRICE = 0.95;
+export const PEAK_NO_LIMIT_PRICE = 0.97;
 
 type LimitOrder = Awaited<ReturnType<ClobClient["createOrder"]>>;
 type MarketOrder = Awaited<ReturnType<ClobClient["createMarketOrder"]>>;
@@ -14,8 +16,17 @@ export type PreparedOrders = {
   shares: number;
 };
 
+export type PreparedLimitOrder = {
+  limitOrder: LimitOrder;
+  shares: number;
+};
+
 const preparedOrders = new Map<string, PreparedOrders>();
 const preparingOrders = new Map<string, Promise<void>>();
+
+const preparedYesOrders = new Map<string, PreparedLimitOrder>();
+const preparedPeakNoOrders = new Map<string, PreparedLimitOrder>();
+const preparingPeakOrders = new Map<string, Promise<void>>();
 
 function gcd(a: number, b: number): number {
   while (b) { [a, b] = [b, a % b]; }
@@ -38,8 +49,23 @@ export function limitShares(config: Config): number {
   return Math.max(config.minShares, Math.floor(shares / LIMIT_SHARE_STEP) * LIMIT_SHARE_STEP);
 }
 
+function peakShares(price: number, config: Config): number {
+  const a = Math.round(price * 100);
+  const step = 1 / gcd(a, 100);
+  const shares = config.maxStake / price;
+  return Math.max(config.minShares, Math.floor(shares / step) * step);
+}
+
 export function getPreparedOrders(tokenId: string): PreparedOrders | undefined {
   return preparedOrders.get(tokenId);
+}
+
+export function getPreparedYesOrder(yesTokenId: string): PreparedLimitOrder | undefined {
+  return preparedYesOrders.get(yesTokenId);
+}
+
+export function getPreparedPeakNoOrder(noTokenId: string): PreparedLimitOrder | undefined {
+  return preparedPeakNoOrders.get(noTokenId);
 }
 
 export async function prepareOrders(
@@ -56,19 +82,30 @@ export async function prepareOrders(
     !preparedOrders.has(b.noTokenId) &&
     !preparingOrders.has(b.noTokenId)
   );
-  if (exactBuckets.length === 0) {
+
+  const includePeak = config.strategy === "peak" || config.strategy === "both";
+  const exactPeakBuckets = includePeak
+    ? buckets.filter(b =>
+        b.type === "exact" &&
+        !preparedYesOrders.has(b.yesTokenId) &&
+        !preparedPeakNoOrders.has(b.noTokenId) &&
+        !preparingPeakOrders.has(b.noTokenId)
+      )
+    : [];
+
+  if (exactBuckets.length === 0 && exactPeakBuckets.length === 0) {
     await Promise.allSettled(pendingTasks);
     return;
   }
 
   const startedAt = performance.now();
   const shares = limitShares(config);
+  const yesShares = peakShares(YES_LIMIT_PRICE, config);
+  const peakNoShares = peakShares(PEAK_NO_LIMIT_PRICE, config);
 
-  const tasks = exactBuckets.map(bucket => {
+  const noTasks = exactBuckets.map(bucket => {
     const options = { tickSize: "0.01" as const, negRisk: bucket.negRisk };
     const task = (async () => {
-      // getClobMarketInfo is a warm-up / side-effect call; its result is unused.
-      // Run it in parallel with order creation so it doesn't block the critical path.
       const marketInfoPromise = clob.getClobMarketInfo(bucket.conditionId).catch(() => undefined);
       const [limitOrder, marketOrder] = await Promise.all([
         clob.createOrder(
@@ -80,8 +117,7 @@ export async function prepareOrders(
           options,
         ),
       ]);
-      await marketInfoPromise; // ensure it settled (no-op on success/failure)
-
+      await marketInfoPromise;
       preparedOrders.set(bucket.noTokenId, { limitOrder, marketOrder, shares });
     })().finally(() => {
       preparingOrders.delete(bucket.noTokenId);
@@ -91,7 +127,30 @@ export async function prepareOrders(
     return task;
   });
 
-  const results = await Promise.allSettled([...pendingTasks, ...tasks]);
+  const peakTasks = exactPeakBuckets.map(bucket => {
+    const options = { tickSize: "0.01" as const, negRisk: bucket.negRisk };
+    const task = (async () => {
+      const [yesOrder, peakNoOrder] = await Promise.all([
+        clob.createOrder(
+          { tokenID: bucket.yesTokenId, price: YES_LIMIT_PRICE, size: yesShares, side: Side.BUY },
+          options,
+        ),
+        clob.createOrder(
+          { tokenID: bucket.noTokenId, price: PEAK_NO_LIMIT_PRICE, size: peakNoShares, side: Side.BUY },
+          options,
+        ),
+      ]);
+      preparedYesOrders.set(bucket.yesTokenId, { limitOrder: yesOrder, shares: yesShares });
+      preparedPeakNoOrders.set(bucket.noTokenId, { limitOrder: peakNoOrder, shares: peakNoShares });
+    })().finally(() => {
+      preparingPeakOrders.delete(bucket.noTokenId);
+    });
+
+    preparingPeakOrders.set(bucket.noTokenId, task);
+    return task;
+  });
+
+  const results = await Promise.allSettled([...pendingTasks, ...noTasks, ...peakTasks]);
 
   const ok = results.filter(r => r.status === "fulfilled").length;
   const failed = results.length - ok;

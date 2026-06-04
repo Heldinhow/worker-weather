@@ -3,8 +3,8 @@ import type { BucketState, ObservationResult } from "./types.ts";
 import type { CityConfig, Config } from "./config.ts";
 import { fetchNoaa } from "./fetchers/noaa.ts";
 import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
-import { evaluateBuckets } from "./evaluator.ts";
-import { postOrder } from "./trader.ts";
+import { evaluateBuckets, evaluatePeakDrop } from "./evaluator.ts";
+import { postOrder, postPeakOrders } from "./trader.ts";
 import { refreshBooks, startBookStream, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
@@ -108,28 +108,46 @@ export function handleObs(
   source: string,
   icao: string,
   ref: { value: number },
+  peakTriggered: { value: boolean },
   bucketMap: Map<string, BucketState>,
   tradeBuckets: BucketState[],
   clob: ClobClient,
   config: Config,
 ): void {
   if (!obs) return;
-  if (obs.tempC <= ref.value) return;
 
-  const prevValue = ref.value;
-  ref.value = obs.tempC;
-  const detectedAtMs = Date.now();
-  const t0 = performance.now();
+  const runNo = config.strategy === "no" || config.strategy === "both";
+  const runPeak = config.strategy === "peak" || config.strategy === "both";
 
-  updateCity(icao, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
+  if (obs.tempC > ref.value) {
+    const prevValue = ref.value;
+    ref.value = obs.tempC;
+    const detectedAtMs = Date.now();
+    const t0 = performance.now();
 
-  evaluateBuckets(obs.tempC, tradeBuckets, b => {
-    postOrder(clob, b, config);
-  });
+    updateCity(icao, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
 
-  const elapsedUs = Math.round((performance.now() - t0) * 1000);
-  const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
-  log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} hotPath=${elapsedUs}µs`);
+    if (runNo) {
+      evaluateBuckets(obs.tempC, tradeBuckets, b => {
+        postOrder(clob, b, config);
+      });
+    }
+
+    const elapsedUs = Math.round((performance.now() - t0) * 1000);
+    const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
+    log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} hotPath=${elapsedUs}µs`);
+  } else if (runPeak && obs.tempC < ref.value && ref.value !== -Infinity) {
+    const brtHour = getBrtHour(Date.now());
+    evaluatePeakDrop(ref.value, tradeBuckets, brtHour, peakTriggered, (yesBucket, noBucket) => {
+      log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} brtHour=${brtHour} → buying YES ${yesBucket.tempC}°C + NO ${noBucket?.tempC ?? "none"}°C`);
+      postPeakOrders(clob, yesBucket, noBucket, config);
+    });
+  }
+}
+
+function getBrtHour(nowMs: number): number {
+  const brtS = Math.floor(nowMs / 1000) - 3 * 3600;
+  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
 export async function runHotWindowLoop(
@@ -140,6 +158,7 @@ export async function runHotWindowLoop(
   observedMaxRef: { value: number },
   deadline: number,
 ): Promise<void> {
+  const peakTriggered = { value: false };
   const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
   const exactBuckets = buckets.filter(b => b.type === "exact");
   const exactTokenIds = exactBuckets.map(b => b.noTokenId);
@@ -199,7 +218,7 @@ export async function runHotWindowLoop(
           ],
           () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
           obs => getMetarBrtHour(obs) !== prevHour,
-          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
         );
       }
 
@@ -217,7 +236,7 @@ export async function runHotWindowLoop(
           { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
           { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
         ],
-        (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
+        (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
       );
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
 

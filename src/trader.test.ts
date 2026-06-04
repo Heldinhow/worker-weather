@@ -14,6 +14,7 @@ const config: Config = {
   privateKey: "0x0",
   funderAddress: undefined,
   signatureType: undefined,
+  strategy: "no" as const,
 };
 
 describe("postOrder", () => {
@@ -22,11 +23,13 @@ describe("postOrder", () => {
       tempC: 20,
       type: "exact",
       noTokenId: "token-trader",
+      yesTokenId: "yes-token-trader",
       conditionId: "condition-trader",
       negRisk: false,
       bought: false,
       attempted: false,
       pendingBuy: true,
+      peakBought: false,
     };
 
     const posted: unknown[] = [];

@@ -18,6 +18,7 @@ export type Config = {
   privateKey: string;
   funderAddress: string | undefined;
   signatureType: string | undefined;
+  strategy: "no" | "peak" | "both";
 };
 
 export function loadConfig(): Config {
@@ -35,5 +36,6 @@ export function loadConfig(): Config {
     privateKey,
     funderAddress: process.env.POLY_FUNDER_ADDRESS || undefined,
     signatureType: process.env.POLY_SIGNATURE_TYPE || undefined,
+    strategy: (process.env.STRATEGY ?? "no") as "no" | "peak" | "both",
   };
 }

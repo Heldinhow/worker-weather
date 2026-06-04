@@ -19,6 +19,7 @@ const config: Config = {
   privateKey: "0x0000000000000000000000000000000000000000000000000000000000000000",
   funderAddress: undefined,
   signatureType: undefined,
+  strategy: "no" as const,
 };
 
 type SubmitRecorder = {
@@ -45,11 +46,13 @@ function makeBucket(tokenSuffix: string, tempC = 24): BucketState {
     tempC,
     type: "exact",
     noTokenId: `token-${tokenSuffix}`,
+    yesTokenId: `yes-token-${tokenSuffix}`,
     conditionId: `condition-${tokenSuffix}`,
     negRisk: false,
     bought: false,
     attempted: false,
     pendingBuy: false,
+    peakBought: false,
   };
 }
 
@@ -150,7 +153,7 @@ async function benchHandleObsHotPath(clob: ClobClient & SubmitRecorder, bucket: 
       bucket.attempted = false;
       bucket.pendingBuy = false;
       clob.arm();
-      handleObs(obs, "bench/SBGR", "SBGR", ref, bucketMap, buckets, clob, config);
+      handleObs(obs, "bench/SBGR", "SBGR", ref, { value: false }, bucketMap, buckets, clob, config);
       const us = clob.firstUs();
       if (i >= WARMUP) values.push(us);
       await waitForPostOrderToSettle(bucket);

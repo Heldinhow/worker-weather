@@ -38,7 +38,7 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   const event = events[0]!;
 
   const buckets: BucketState[] = event.markets.map(m => {
-    const [, noId] = JSON.parse(m.clobTokenIds) as [string, string];
+    const [yesId, noId] = JSON.parse(m.clobTokenIds) as [string, string];
     const tempMatch = m.question.match(/(\d+)°C/);
     const tempC = tempMatch ? parseInt(tempMatch[1]!, 10) : 0;
     const lq = m.question.toLowerCase();
@@ -50,11 +50,13 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
       tempC,
       type,
       noTokenId: noId!,
+      yesTokenId: yesId!,
       conditionId: m.conditionId,
       negRisk: event.negRisk,
       bought: false,
       attempted: false,
       pendingBuy: false,
+      peakBought: false,
     };
   });
 

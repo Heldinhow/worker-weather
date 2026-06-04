@@ -15,3 +15,41 @@ export function evaluateBuckets(
     postOrder(b);
   }
 }
+
+// Fires once when a confirmed temperature drop is detected between 12h–16h BRT.
+// Buys YES on the peak bucket and NO on the bucket immediately above.
+// Expects buckets sorted ascending by tempC.
+export function evaluatePeakDrop(
+  observedMaxTempC: number,
+  buckets: BucketState[],
+  brtHour: number,
+  peakTriggered: { value: boolean },
+  postPeakOrders: (yesBucket: BucketState, noBucket: BucketState | undefined) => void,
+): void {
+  if (peakTriggered.value) return;
+  if (brtHour < 12 || brtHour >= 16) return;
+
+  const peakFloor = Math.floor(observedMaxTempC);
+  let yesBucket: BucketState | undefined;
+  let noBucket: BucketState | undefined;
+
+  for (let i = 0; i < buckets.length; i++) {
+    const b = buckets[i]!;
+    if (b.type !== "exact") continue;
+    if (b.tempC === peakFloor) {
+      yesBucket = b;
+      // next exact bucket above peak is the NO target
+      for (let j = i + 1; j < buckets.length; j++) {
+        if (buckets[j]!.type === "exact") { noBucket = buckets[j]; break; }
+      }
+      break;
+    }
+  }
+
+  if (!yesBucket) return;
+  if (yesBucket.peakBought) return;
+
+  yesBucket.peakBought = true;
+  peakTriggered.value = true;
+  postPeakOrders(yesBucket, noBucket);
+}
