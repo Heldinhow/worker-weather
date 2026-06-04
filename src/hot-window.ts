@@ -167,7 +167,7 @@ export async function runHotWindowLoop(
     if (activeHour !== undefined) {
       if (!config.dryRun) {
         void refreshBooks(clob, exactTokenIds);
-        void prepareOrders(clob, buckets, config);
+        // prepareOrders was already awaited at init; re-checking is cheap but unnecessary.
         if (!isBookStreamConnected(wsKey)) {
           forceReconnectBookStream(wsKey);
         }

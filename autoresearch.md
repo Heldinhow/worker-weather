@@ -57,4 +57,23 @@ Runs `bun run src/benchmark.ts` which:
 - No new runtime dependencies
 
 ## What's Been Tried
-<!-- Updated during loop -->
+1. **Remove getCachedAsksFast from hot path** (`trader.ts`) — eliminated unnecessary Map.get and reason ternary from prepared fast path. Saved ~1µs.
+2. **Non-blocking hot window entry** (`hot-window.ts`) — `refreshBooks` + `prepareOrders` now fire-and-forget instead of blocking first fetch. Removes ~400-600ms stall.
+3. **Precise sleep scheduling** (`hot-window.ts`) — replaced fixed 30s sleep with `msUntilNextHotWindow`, waking exactly at window open. Eliminates up-to-29s oversleep.
+4. **NOAA parsing optimization + connection warm-up** (`fetchers/noaa.ts`, `hot-window.ts`) — zero-allocation line parsing, warm-up fetch before window. NOAA warm fetch 4x faster (168ms vs 702ms).
+5. **Reduced fetch timeout** — 12s → 5s for faster failure recovery.
+6. **Periodic REST book refresh during hot window** — 10s (later 5s) interval as WS fallback.
+7. **WS health check + force reconnect** — verifies WS is connected before window, reconnects immediately if not.
+8. **WS max reconnect delay 30s → 5s** — faster recovery after WS drops.
+9. **CLOB REST warm-up** — pre-connects TLS for `getOrderBook` before window.
+10. **formatBrt cache** — avoids repeated Date/toISOString for same millisecond.
+11. **exactBuckets on hot path** — `evaluateBuckets` only iterates exact buckets, skipping below/above.
+12. **Set<AbortController>** — O(1) deletion instead of O(n) splice in fetch loop.
+13. **await prepareOrders on init** — guarantees 100% prepared hit rate before window.
+14. **Cache-busting on both fetchers** — `?_=${Date.now()}` avoids CDN staleness.
+15. **keepalive: true** on both fetchers — ensures HTTP connection reuse.
+16. **Logger tag color cache** — O(1) lookup instead of O(n) iteration.
+17. **Sorted insertion in book cache** (`applyAskChange`, `normalizeOrders`) — avoids full-array sorts on every WS message.
+
+## Deferred Ideas
+- See `autoresearch.ideas.md`
