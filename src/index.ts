@@ -5,30 +5,14 @@ import type { BucketState } from "./types.ts";
 import { runHotWindowLoop } from "./hot-window.ts";
 import { log, registerCityColor } from "./logger.ts";
 import { startDashboard } from "./dashboard.ts";
-
-const MONTHS = [
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-];
-
-function todaySlug(citySlug: string): string {
-  const brt = new Date(Date.now() - 3 * 3600_000);
-  const month = MONTHS[brt.getUTCMonth()]!;
-  const day = brt.getUTCDate();
-  const year = brt.getUTCFullYear();
-  return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
-}
+import { todaySlug } from "./time.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();
-  const brt = new Date(now - 3 * 3600_000);
-  const nextMidnightUtc = Date.UTC(
-    brt.getUTCFullYear(),
-    brt.getUTCMonth(),
-    brt.getUTCDate() + 1,
-    3, 0, 0, 0,
-  );
-  return nextMidnightUtc - now;
+  const brtMs = now - 3 * 3600_000;
+  const dayMs = 86_400_000;
+  const tomorrowStartBrt = Math.floor(brtMs / dayMs) * dayMs + dayMs;
+  return tomorrowStartBrt - brtMs;
 }
 
 interface GammaMarket {
@@ -42,9 +26,14 @@ interface GammaEvent {
   markets: GammaMarket[];
 }
 
+const slugCache = new Map<string, { slug: string; buckets: BucketState[] }>();
+
 async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; buckets: BucketState[] }> {
   const slug = todaySlug(city.slug);
-  const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+  const cached = slugCache.get(slug);
+  if (cached) return cached;
+
+  const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`, { keepalive: true });
   const events = await resp.json() as GammaEvent[];
   const event = events[0]!;
 
@@ -72,18 +61,23 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   // Sort ascending by tempC so evaluateBuckets can break early
   buckets.sort((a, b) => a.tempC - b.tempC);
 
-  return { slug, buckets };
+  const result = { slug, buckets };
+  slugCache.set(slug, result);
+  return result;
 }
 
-async function runCity(city: CityConfig, config: Config, clob: ClobClient): Promise<void> {
+async function runCity(city: CityConfig, config: Config, clob: ClobClient, initialBuckets: BucketState[]): Promise<void> {
+  let buckets = initialBuckets;
   while (true) {
-    const { buckets } = await resolveSlugAndMarkets(city);
     const observedMaxRef = { value: -Infinity };
     const deadline = Date.now() + getMsUntilMidnightBrt();
 
     await runHotWindowLoop(city, config, clob, buckets, observedMaxRef, deadline);
 
-    await Bun.sleep(2_000);
+    // Re-resolve markets in case the day changed while we were inside the loop
+    const resolved = await resolveSlugAndMarkets(city);
+    buckets = resolved.buckets;
+    await Bun.sleep(100);
   }
 }
 
@@ -95,8 +89,12 @@ if (config.dryRun) {
   log("boot", "DRY RUN mode — no orders will be posted to the CLOB");
 }
 
-const clob = config.dryRun
-  ? null as unknown as ClobClient
-  : await initClobClient(config);
+// Parallelize CLOB init with market resolution to reduce cold-start time
+const clobPromise = config.dryRun
+  ? Promise.resolve(null as unknown as ClobClient)
+  : initClobClient(config);
+const marketsPromise = Promise.all(config.cities.map(city => resolveSlugAndMarkets(city)));
 
-await Promise.all(config.cities.map(city => runCity(city, config, clob)));
+const [clob, markets] = await Promise.all([clobPromise, marketsPromise]);
+
+await Promise.all(config.cities.map((city, i) => runCity(city, config, clob, markets[i]!.buckets)));

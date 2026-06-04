@@ -150,7 +150,7 @@ async function benchHandleObsHotPath(clob: ClobClient & SubmitRecorder, bucket: 
       bucket.attempted = false;
       bucket.pendingBuy = false;
       clob.arm();
-      handleObs(obs, "bench/SBGR", ref, bucketMap, buckets, clob, config);
+      handleObs(obs, "bench/SBGR", "SBGR", ref, bucketMap, buckets, clob, config);
       const us = clob.firstUs();
       if (i >= WARMUP) values.push(us);
       await waitForPostOrderToSettle(bucket);

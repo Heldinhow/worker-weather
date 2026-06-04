@@ -18,8 +18,8 @@ const RESET = "\x1b[0m";
 const SAVE = "\x1b7";
 const RESTORE = "\x1b8";
 
-export function updateCity(icao: string, s: CityDashboardState): void {
-  cityState.set(icao, s);
+export function updateCity(icao: string, observedMax: number, metarTimestampMs: number, detectedAtMs: number): void {
+  cityState.set(icao, { observedMax, metarTimestampMs, detectedAtMs });
 }
 
 function blockHeight(): number {

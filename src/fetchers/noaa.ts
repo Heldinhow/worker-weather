@@ -31,27 +31,35 @@ export async function fetchNoaa(icao: string, signal?: AbortSignal): Promise<Obs
   let timeout: ReturnType<typeof setTimeout> | undefined;
   if (!fetchSignal) {
     const ac = new AbortController();
-    timeout = setTimeout(() => ac.abort(), 12_000);
+    timeout = setTimeout(() => ac.abort(), 5_000);
     fetchSignal = ac.signal;
   }
 
   try {
     const resp = await fetch(
-      `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT`,
+      `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT?_=${Date.now()}`,
       {
         signal: fetchSignal,
         headers: { "Cache-Control": "no-cache", "User-Agent": UA },
+        keepalive: true,
       },
     );
     if (timeout) clearTimeout(timeout);
     if (!resp.ok) return null;
 
     const text = await resp.text();
-    const lines = text.trim().split("\n");
-    if (lines.length < 2) return null;
-
-    const line0 = lines[0]!;
-    const line1 = lines[1]!;
+    // Fast path: find first two lines without allocating a split array.
+    let i = 0;
+    while (i < text.length && (text.charCodeAt(i) === 13 || text.charCodeAt(i) === 10)) i++; // skip leading newlines
+    const start0 = i;
+    while (i < text.length && text.charCodeAt(i) !== 10 && text.charCodeAt(i) !== 13) i++;
+    const line0 = text.slice(start0, i);
+    i++;
+    while (i < text.length && (text.charCodeAt(i) === 13 || text.charCodeAt(i) === 10)) i++;
+    const start1 = i;
+    while (i < text.length && text.charCodeAt(i) !== 10 && text.charCodeAt(i) !== 13) i++;
+    const line1 = text.slice(start1, i);
+    if (!line0 || !line1) return null;
 
     const dm = line0.match(/(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
     if (!dm) return null;

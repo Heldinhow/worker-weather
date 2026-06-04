@@ -25,16 +25,17 @@ export async function fetchAviationWeather(icao: string, signal?: AbortSignal): 
   let timeout: ReturnType<typeof setTimeout> | undefined;
   if (!fetchSignal) {
     const ac = new AbortController();
-    timeout = setTimeout(() => ac.abort(), 12_000);
+    timeout = setTimeout(() => ac.abort(), 5_000);
     fetchSignal = ac.signal;
   }
 
   try {
     const resp = await fetch(
-      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&metar=true&hours=3`,
+      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&metar=true&hours=1&_=${Date.now()}`,
       {
         signal: fetchSignal,
         headers: { "Accept": "application/json", "User-Agent": UA },
+        keepalive: true,
       },
     );
     if (timeout) clearTimeout(timeout);

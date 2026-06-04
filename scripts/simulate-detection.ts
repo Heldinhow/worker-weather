@@ -116,6 +116,7 @@ console.log(`[sim] firing handleObs...\n`);
 handleObs(
   { tempC: obs, observedAtUtcMs: Date.now() },
   `sim/${icao}`,
+  icao,
   observedMaxRef,
   bucketMap,
   buckets,
