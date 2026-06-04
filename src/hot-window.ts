@@ -13,11 +13,6 @@ import { updateCity } from "./dashboard.ts";
 
 const DAY_S = 86_400;
 
-function getBrtHour(now: Date): number {
-  const brtS = Math.floor(now.getTime() / 1000) - 3 * 3600;
-  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
-}
-
 // Seconds since midnight BRT
 function brtSecondsSinceMidnight(ms: number): number {
   const brtS = Math.floor(ms / 1000) - 3 * 3600;
@@ -60,14 +55,15 @@ function getMetarBrtHour(obs: ObservationResult): number {
   return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
-export async function processObservationFetches(
+export function processObservationFetches(
   fetches: { source: string; promise: Promise<ObservationResult | null> }[],
   onObservation: (obs: ObservationResult | null, source: string) => void,
-): Promise<(ObservationResult | null)[]> {
-  return Promise.all(fetches.map(({ source, promise }) => promise.then(obs => {
-    onObservation(obs, source);
-    return obs;
-  })));
+): void {
+  // Fire-and-forget: don't let a slow fetcher block the sleep interval.
+  // onObservation is called as soon as each individual fetch resolves.
+  for (const { source, promise } of fetches) {
+    promise.then(obs => onObservation(obs, source)).catch(() => undefined);
+  }
 }
 
 export async function runHotObservationLoops(
@@ -212,16 +208,14 @@ export async function runHotWindowLoop(
       const remainingMs = Math.max(0, (closeS - nowS) * 1000 + 100); // +100ms buffer
       if (remainingMs > 0) await Bun.sleep(remainingMs);
     } else {
-      await Promise.all([
-        processObservationFetches(
-          [
-            { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
-            { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
-          ],
-          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
-        ),
-        config.dryRun ? Promise.resolve() : refreshBooks(clob, exactTokenIds),
-      ]);
+      processObservationFetches(
+        [
+          { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
+          { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
+        ],
+        (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, exactBuckets, clob, config),
+      );
+      if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
 
       const preciseSleep = msUntilNextHotWindow(Date.now(), city);
       // If a hot window is imminent (< 2 min), wake up precisely then;

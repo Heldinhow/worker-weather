@@ -16,7 +16,7 @@ describe("processObservationFetches", () => {
     const slow = deferred<ObservationResult | null>();
     const calls: string[] = [];
 
-    const all = processObservationFetches(
+    processObservationFetches(
       [
         {
           source: "fast",
@@ -37,10 +37,7 @@ describe("processObservationFetches", () => {
     expect(calls).toEqual(["fast:21"]);
 
     slow.resolve({ tempC: 22, observedAtUtcMs: 2 });
-    await expect(all).resolves.toEqual([
-      { tempC: 21, observedAtUtcMs: 1 },
-      { tempC: 22, observedAtUtcMs: 2 },
-    ]);
+    await Bun.sleep(0);
     expect(calls).toEqual(["fast:21", "slow:22"]);
   });
 });
