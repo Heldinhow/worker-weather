@@ -150,15 +150,15 @@ export async function runHotWindowLoop(
     // Give the WS a moment to connect before we proceed. 300ms is usually
     // enough for the handshake + initial book snapshot on a warm connection.
     await Bun.sleep(300);
+    // Warm-up HTTP connections in parallel with prepareOrders — both are
+    // independent and the fetcher warm-up takes ~700ms cold. Overlapping
+    // shaves that time off the critical path before the hot window opens.
+    void fetchNoaa(city.icao).catch(() => undefined);
+    void fetchAviationWeather(city.icao).catch(() => undefined);
+    if (exactTokenIds.length > 0) void clob.getOrderBook(exactTokenIds[0]!).catch(() => undefined);
     // Ensure prepared orders are ready before we enter the hot window.
     // Slow path (on-the-fly createOrder) adds 50–200ms which loses races.
     await prepareOrders(clob, buckets, config);
-    // Warm-up HTTP connections so the first fetch inside the hot window
-    // reuses an already-established TCP/TLS handshake.
-    void fetchNoaa(city.icao).catch(() => undefined);
-    void fetchAviationWeather(city.icao).catch(() => undefined);
-    // Warm-up CLOB REST connection for book refreshes
-    if (exactTokenIds.length > 0) void clob.getOrderBook(exactTokenIds[0]!).catch(() => undefined);
   }
 
   while (Date.now() < deadline) {
