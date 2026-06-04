@@ -31,6 +31,7 @@ function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
   const ssm = brtSecondsSinceMidnight(nowMs);
   const currentH = Math.floor(ssm / 3600);
   const currentM = Math.floor((ssm % 3600) / 60);
+  const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
 
   // Check each target hour to find the next window opening
   for (const target of city.targetHours) {
@@ -39,7 +40,6 @@ function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
     const closeS = target * 3600 + city.hotWindowEnd * 60;
 
     // If currently inside this window, return 0
-    const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
     if (currentS >= openS && currentS <= closeS) return 0;
 
     if (currentS < openS) {
@@ -52,7 +52,6 @@ function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
   const prevH = (firstTarget - 1 + 24) % 24;
   const openS = prevH * 3600 + city.hotWindowStart * 60;
   const tomorrowOpenS = openS + DAY_S;
-  const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
   return (tomorrowOpenS - currentS) * 1000;
 }
 
@@ -125,7 +124,7 @@ export function handleObs(
   ref.value = obs.tempC;
   const detectedAtMs = Date.now();
 
-  updateCity(icao, { observedMax: obs.tempC, metarTimestampMs: obs.observedAtUtcMs, detectedAtMs });
+  updateCity(icao, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
 
   evaluateBuckets(obs.tempC, tradeBuckets, b => {
     postOrder(clob, b, config);
@@ -150,7 +149,9 @@ export async function runHotWindowLoop(
 
   if (!config.dryRun) {
     startBookStream(exactTokenIds, city.icao);
-    void prepareOrders(clob, buckets, config);
+    // Ensure prepared orders are ready before we enter the hot window.
+    // Slow path (on-the-fly createOrder) adds 50–200ms which loses races.
+    await prepareOrders(clob, buckets, config);
     // Warm-up HTTP connections so the first fetch inside the hot window
     // reuses an already-established TCP/TLS handshake.
     void fetchNoaa(city.icao).catch(() => undefined);

@@ -37,7 +37,7 @@ export async function fetchNoaa(icao: string, signal?: AbortSignal): Promise<Obs
 
   try {
     const resp = await fetch(
-      `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT`,
+      `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT?_=${Date.now()}`,
       {
         signal: fetchSignal,
         headers: { "Cache-Control": "no-cache", "User-Agent": UA },
