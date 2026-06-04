@@ -151,6 +151,9 @@ export async function runHotWindowLoop(
 
   if (!config.dryRun) {
     startBookStream(exactTokenIds, city.icao);
+    // Give the WS a moment to connect before we proceed. 300ms is usually
+    // enough for the handshake + initial book snapshot on a warm connection.
+    await Bun.sleep(300);
     // Ensure prepared orders are ready before we enter the hot window.
     // Slow path (on-the-fly createOrder) adds 50–200ms which loses races.
     await prepareOrders(clob, buckets, config);
