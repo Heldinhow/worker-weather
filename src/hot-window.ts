@@ -5,7 +5,7 @@ import { fetchNoaa } from "./fetchers/noaa.ts";
 import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
 import { evaluateBuckets } from "./evaluator.ts";
 import { postOrder } from "./trader.ts";
-import { refreshBooks, startBookStream } from "./book-cache.ts";
+import { refreshBooks, startBookStream, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
 import { formatBrt, isHotWindow, isHotWindowMs } from "./time.ts";
@@ -164,6 +164,10 @@ export async function runHotWindowLoop(
       if (!config.dryRun) {
         void refreshBooks(clob, exactTokenIds);
         void prepareOrders(clob, buckets, config);
+        const wsKey = exactTokenIds.slice().sort().join(",");
+        if (!isBookStreamConnected(wsKey)) {
+          forceReconnectBookStream(wsKey);
+        }
       }
       log(city.icao, `hot window open targetHour=${activeHour}`);
 

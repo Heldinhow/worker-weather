@@ -7,7 +7,12 @@ interface CachedBook {
 }
 
 const cache = new Map<string, CachedBook>();
-const streams = new Map<string, { ws: WebSocket | null; reconnects: number }>();
+interface StreamState {
+  ws: WebSocket | null;
+  reconnects: number;
+  _connect: (() => void) | null;
+}
+const streams = new Map<string, StreamState>();
 
 // 90s TTL — warm polls run every 30s so cache is always fresh in normal operation
 const STALE_MS = 90_000;
@@ -103,6 +108,25 @@ export function applyMarketMessage(raw: unknown): void {
   }
 }
 
+export function isBookStreamConnected(key: string): boolean {
+  const state = streams.get(key);
+  return state?.ws?.readyState === WebSocket.OPEN;
+}
+
+export function forceReconnectBookStream(key: string): void {
+  const state = streams.get(key);
+  if (!state) return;
+  if (state.ws) {
+    state.ws.close();
+  }
+  state.reconnects = 0;
+  // onclose handler will call connect after 1s (2^0 * 1000), but we want it sooner.
+  // We'll schedule connect explicitly after a short delay to let the old socket cleanup.
+  setTimeout(() => {
+    if (!state.ws && state._connect) state._connect();
+  }, 200);
+}
+
 export function startBookStream(tokenIds: string[], label: string): void {
   const ids = [...new Set(tokenIds)].sort();
   if (ids.length === 0) return;
@@ -110,7 +134,7 @@ export function startBookStream(tokenIds: string[], label: string): void {
   const key = ids.join(",");
   if (streams.has(key)) return;
 
-  const state = { ws: null as WebSocket | null, reconnects: 0 };
+  const state = { ws: null as WebSocket | null, reconnects: 0, _connect: null as (() => void) | null };
   streams.set(key, state);
 
   const connect = () => {
@@ -147,6 +171,7 @@ export function startBookStream(tokenIds: string[], label: string): void {
     };
   };
 
+  state._connect = connect;
   connect();
   log(`book-ws/${label}`, `subscribed tokens=${ids.length}`);
 }
