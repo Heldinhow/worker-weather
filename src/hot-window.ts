@@ -7,35 +7,11 @@ import { evaluateBuckets } from "./evaluator.ts";
 import { postOrder } from "./trader.ts";
 import { refreshBooks, startBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
-import { log, formatBrt } from "./logger.ts";
+import { log } from "./logger.ts";
+import { formatBrt, isHotWindow, isHotWindowMs } from "./time.ts";
+import { updateCity } from "./dashboard.ts";
 
 const DAY_S = 86_400;
-
-function brtHourMin(nowMs: number): { h: number; m: number } {
-  const brtS = Math.floor(nowMs / 1000) - 3 * 3600;
-  const dayS = ((brtS % DAY_S) + DAY_S) % DAY_S;
-  return { h: Math.floor(dayS / 3600), m: Math.floor((dayS % 3600) / 60) };
-}
-
-export function isHotWindow(
-  now: Date,
-  targetHourBrt: number,
-  windowStart: number,
-  windowEnd: number,
-): boolean {
-  return isHotWindowMs(now.getTime(), targetHourBrt, windowStart, windowEnd);
-}
-
-function isHotWindowMs(
-  nowMs: number,
-  targetHourBrt: number,
-  windowStart: number,
-  windowEnd: number,
-): boolean {
-  const { h, m } = brtHourMin(nowMs);
-  const prevH = (targetHourBrt - 1 + 24) % 24;
-  return (h === prevH && m >= windowStart) || (h === targetHourBrt && m <= windowEnd);
-}
 
 function getBrtHour(now: Date): number {
   const brtS = Math.floor(now.getTime() / 1000) - 3 * 3600;
@@ -98,29 +74,28 @@ export async function runHotObservationLoops(
 export function handleObs(
   obs: ObservationResult | null,
   source: string,
+  icao: string,
   ref: { value: number },
   bucketMap: Map<string, BucketState>,
   buckets: BucketState[],
   clob: ClobClient,
   config: Config,
 ): void {
-  if (!obs) {
-    log(source, "no data");
-    return;
-  }
-  if (obs.tempC <= ref.value) {
-    log(source, `tempC=${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
-    return;
-  }
+  if (!obs) return;
+  if (obs.tempC <= ref.value) return;
 
   const prevValue = ref.value;
   ref.value = obs.tempC;
+  const detectedAtMs = Date.now();
+
+  updateCity(icao, { observedMax: obs.tempC, metarTimestampMs: obs.observedAtUtcMs, detectedAtMs });
+
   evaluateBuckets(obs.tempC, buckets, b => {
     postOrder(clob, b, config);
   });
+
   const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
-  log(source, `tempC=${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
-  log(source, `observedMax ${prev} → ${obs.tempC}`);
+  log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)}`);
 }
 
 export async function runHotWindowLoop(
@@ -131,7 +106,6 @@ export async function runHotWindowLoop(
   observedMaxRef: { value: number },
   deadline: number,
 ): Promise<void> {
-  // Pre-compute once — used on every iteration
   const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
   const exactTokenIds = buckets.filter(b => b.type === "exact").map(b => b.noTokenId);
 
@@ -145,7 +119,6 @@ export async function runHotWindowLoop(
     const activeHour = city.targetHours.find(h => isHotWindowMs(nowMs, h, city.hotWindowStart, city.hotWindowEnd));
 
     if (activeHour !== undefined) {
-      // Ensure book cache is fresh before entering the hot window
       if (!config.dryRun) await Promise.all([
         refreshBooks(clob, exactTokenIds),
         prepareOrders(clob, buckets, config),
@@ -168,7 +141,7 @@ export async function runHotWindowLoop(
           ],
           () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
           obs => getMetarBrtHour(obs) !== prevHour,
-          (obs, source) => handleObs(obs, source, observedMaxRef, bucketMap, buckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, buckets, clob, config),
         );
       }
 
@@ -177,14 +150,13 @@ export async function runHotWindowLoop(
         await Bun.sleep(200);
       }
     } else {
-      // Warm poll: METAR fetches + book cache refresh run concurrently
       await Promise.all([
         processObservationFetches(
           [
             { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
             { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
           ],
-          (obs, source) => handleObs(obs, source, observedMaxRef, bucketMap, buckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, bucketMap, buckets, clob, config),
         ),
         config.dryRun ? Promise.resolve() : refreshBooks(clob, exactTokenIds),
       ]);

@@ -55,3 +55,11 @@ _Avoid_: polling-only cache, stale book cache
 **BRT** (Brasília Time):
 UTC−3, used throughout for date resolution, hot-window detection, and daily reset. Brazil abolished DST in 2019 so this offset is fixed year-round for all supported cities.
 _Avoid_: local time, Brazil time, São Paulo time
+
+**Dashboard**:
+A live terminal display refreshed every second that shows per-city bot state: ObservedMax, the METAR timestamp of the observation that set it, the wall-clock time the bot first detected it, and whether the city is currently in a Hot Window. Replaces routine METAR fetch logs — only detection events (new ObservedMax), trades, and errors produce scroll output and are written to the log file.
+_Avoid_: status panel, monitor, TUI
+
+**DetectedAt**:
+The wall-clock timestamp recorded by the bot the moment it first processes an observation that raises the ObservedMax for a city. Distinct from the METAR timestamp (`observedAtUtcMs`), which is when the station measured the temperature. DetectedAt is relevant for latency analysis; the METAR timestamp is relevant for market resolution.
+_Avoid_: processed at, received at

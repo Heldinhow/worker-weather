@@ -1,9 +1,7 @@
-// BRT = UTC-3, fixed (Brazil abolished DST in 2019)
-export function formatBrt(dateOrMs: Date | number): string {
-  const ms = typeof dateOrMs === "number" ? dateOrMs : dateOrMs.getTime();
-  const brt = new Date(ms - 3 * 3600_000);
-  return brt.toISOString().replace("T", " ").slice(0, 23) + " BRT";
-}
+import { appendFileSync } from "fs";
+import { formatBrt } from "./time.ts";
+
+export { formatBrt } from "./time.ts";
 
 const ANSI_COLORS = [
   "\x1b[36m", // cyan
@@ -21,7 +19,8 @@ export function registerCityColor(icao: string, index: number): void {
   icaoColor.set(icao, ANSI_COLORS[index % ANSI_COLORS.length]!);
 }
 
-const TAG_WIDTH = 14; // wide enough for "noaa/EGLC" + padding
+const TAG_WIDTH = 14;
+const logFile = process.env.LOG_FILE;
 
 export function log(tag: string, msg: string): void {
   const bracket = `[${tag}]`;
@@ -36,5 +35,15 @@ export function log(tag: string, msg: string): void {
     }
   }
 
-  process.stdout.write(`${formatBrt(Date.now())} ${styledTag} ${msg}\n`);
+  const timestamp = formatBrt(Date.now());
+
+  process.stdout.write(`${timestamp} ${styledTag} ${msg}\n`);
+
+  if (logFile) {
+    try {
+      appendFileSync(logFile, `${timestamp} ${bracket.padEnd(TAG_WIDTH)} ${msg}\n`);
+    } catch {
+      // file write errors must not affect the bot
+    }
+  }
 }
