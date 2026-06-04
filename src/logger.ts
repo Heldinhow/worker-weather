@@ -1,4 +1,4 @@
-import { appendFileSync } from "fs";
+import { appendFile } from "node:fs/promises";
 import { formatBrt } from "./time.ts";
 
 export { formatBrt } from "./time.ts";
@@ -55,10 +55,8 @@ export function log(tag: string, msg: string): void {
   process.stdout.write(`${timestamp} ${styledTag} ${msg}\n`);
 
   if (logFile) {
-    try {
-      appendFileSync(logFile, `${timestamp} ${bracket.padEnd(TAG_WIDTH)} ${msg}\n`);
-    } catch {
-      // file write errors must not affect the bot
-    }
+    // Fire-and-forget async write — sync appendFileSync blocks the event loop
+    // and can stall the hot path by 1–5ms on busy disks.
+    appendFile(logFile, `${timestamp} ${bracket.padEnd(TAG_WIDTH)} ${msg}\n`).catch(() => {});
   }
 }
