@@ -79,6 +79,13 @@ Runs `bun run src/benchmark.ts` which:
 20. **Parallelized CLOB init + market resolution** in `index.ts`.
 21. **Slug cache** — avoids re-fetching Gamma API on same-day restart.
 22. **Benchmark stdout suppression + 5000 iterations** — removes I/O overhead from measurement.
+23. **Overlap fetcher warm-up with prepareOrders** (`hot-window.ts`) — warm-up fetches run in parallel with order prewarm instead of sequentially after. Shaves ~400ms off init-to-first-fetch.
+24. **Skip WS settle when already in-window** (`hot-window.ts`) — conditional 300ms sleep; skipped on mid-window restarts.
+25. **Parallelize getClobMarketInfo with order creation** (`order-cache.ts`) — removes sequential stall in prepareOrders.
+26. **AviationWeather hours=3 → hours=1** — smaller JSON payload reduces parse time.
+27. **Async appendFile in logger** — replaces sync appendFileSync to eliminate disk I/O stalls on the hot path.
+28. **BUGFIX getMsUntilMidnightBrt** — removed erroneous +3h offset that would cause 27-hour oversleep after midnight BRT.
+29. **Single shared WS stream** — batch all cities into one WebSocket connection instead of one per city.
 
 ## Results Summary
 - **Hot path (detection-to-submit)**: 1µs (measurement floor — effectively zero overhead)
