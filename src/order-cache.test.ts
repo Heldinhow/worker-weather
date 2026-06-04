@@ -27,7 +27,7 @@ const exactBucket: BucketState = {
 };
 
 describe("limitShares", () => {
-  test("uses the same 1.00 FAK share snapping semantics", () => {
+  test("uses the same 0.99 FAK share snapping semantics", () => {
     expect(limitShares({ ...config, maxStake: 4, minShares: 1 })).toBe(4);
     expect(limitShares({ ...config, maxStake: 4, minShares: 5 })).toBe(5);
   });
@@ -56,8 +56,8 @@ describe("prepareOrders", () => {
     ], config);
 
     expect(calls).toContain("info:condition-20");
-    expect(calls).toContain("limit:token-20:1:5");
-    expect(calls).toContain("market:token-20:4:1");
+    expect(calls).toContain("limit:token-20:0.99:5");
+    expect(calls).toContain("market:token-20:4:0.99");
     expect(calls.some(call => call.includes("token-below"))).toBe(false);
     expect(getPreparedOrders("token-20") as unknown).toEqual({
       limitOrder: { kind: "limit", tokenID: "token-20" },
