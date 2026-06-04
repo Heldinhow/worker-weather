@@ -83,9 +83,13 @@ async function runBenchmark(): Promise<void> {
     return Promise.resolve({ status: "matched" }) as any;
   };
 
+  // Suppress stdout I/O during the measurement loop to avoid overhead
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (() => true) as typeof process.stdout.write;
 
 
-  const N = 1000;
+
+  const N = 5000;
   const detectionToSubmit: number[] = [];
   const evaluatorTimes: number[] = [];
   const traderFastpathTimes: number[] = [];
@@ -120,6 +124,7 @@ async function runBenchmark(): Promise<void> {
   }
 
   clob.postOrder = originalPostOrder;
+  process.stdout.write = originalStdoutWrite;
 
   // Fetcher latency (with 8s timeout each to tolerate slow network during benchmark)
   const fetchWithTimeout = <T>(fn: () => Promise<T>, ms: number): Promise<T | null> =>
