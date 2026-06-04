@@ -44,16 +44,26 @@ export async function refreshBooks(clob: ClobClient, tokenIds: string[]): Promis
 
 function normalizeOrders(orders: unknown): OrderSummary[] {
   if (!Array.isArray(orders)) return [];
-  return orders
-    .map(order => {
-      const raw = order as { price?: unknown; size?: unknown };
-      return {
-        price: String(raw.price ?? ""),
-        size: String(raw.size ?? ""),
-      };
-    })
-    .filter(order => Number.isFinite(Number(order.price)) && Number.isFinite(Number(order.size)))
-    .sort((a, b) => Number(a.price) - Number(b.price));
+  const out: OrderSummary[] = [];
+  for (let i = 0; i < orders.length; i++) {
+    const raw = orders[i] as { price?: unknown; size?: unknown };
+    const price = String(raw.price ?? "");
+    const size = String(raw.size ?? "");
+    if (Number.isFinite(Number(price)) && Number.isFinite(Number(size))) {
+      // Insert in sorted position to avoid full-array sort later
+      const p = Number(price);
+      let inserted = false;
+      for (let j = 0; j < out.length; j++) {
+        if (Number(out[j]!.price) > p) {
+          out.splice(j, 0, { price, size });
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) out.push({ price, size });
+    }
+  }
+  return out;
 }
 
 function isAskSide(side: unknown): boolean {
