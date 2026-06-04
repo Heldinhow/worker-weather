@@ -154,6 +154,8 @@ export async function runHotWindowLoop(
     // reuses an already-established TCP/TLS handshake.
     void fetchNoaa(city.icao).catch(() => undefined);
     void fetchAviationWeather(city.icao).catch(() => undefined);
+    // Warm-up CLOB REST connection for book refreshes
+    if (exactTokenIds.length > 0) void clob.getOrderBook(exactTokenIds[0]!).catch(() => undefined);
   }
 
   while (Date.now() < deadline) {

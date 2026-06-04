@@ -161,7 +161,7 @@ export function startBookStream(tokenIds: string[], label: string): void {
     ws.onclose = () => {
       if (state.ws !== ws) return;
       state.ws = null;
-      const delay = Math.min(1_000 * 2 ** state.reconnects, 30_000);
+      const delay = Math.min(1_000 * 2 ** state.reconnects, 5_000);
       state.reconnects += 1;
       setTimeout(connect, delay);
     };
