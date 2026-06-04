@@ -18,6 +18,44 @@ function getBrtHour(now: Date): number {
   return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
+// Seconds since midnight BRT
+function brtSecondsSinceMidnight(ms: number): number {
+  const brtS = Math.floor(ms / 1000) - 3 * 3600;
+  const dayS = ((brtS % DAY_S) + DAY_S) % DAY_S;
+  return dayS;
+}
+
+// How many ms until the next hot window opens for this city?
+// Returns 0 if currently inside a hot window.
+function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
+  const ssm = brtSecondsSinceMidnight(nowMs);
+  const currentH = Math.floor(ssm / 3600);
+  const currentM = Math.floor((ssm % 3600) / 60);
+
+  // Check each target hour to find the next window opening
+  for (const target of city.targetHours) {
+    const prevH = (target - 1 + 24) % 24;
+    const openS = prevH * 3600 + city.hotWindowStart * 60;
+    const closeS = target * 3600 + city.hotWindowEnd * 60;
+
+    // If currently inside this window, return 0
+    const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
+    if (currentS >= openS && currentS <= closeS) return 0;
+
+    if (currentS < openS) {
+      return (openS - currentS) * 1000;
+    }
+  }
+
+  // All windows for today have passed — next is first target hour tomorrow
+  const firstTarget = city.targetHours[0]!;
+  const prevH = (firstTarget - 1 + 24) % 24;
+  const openS = prevH * 3600 + city.hotWindowStart * 60;
+  const tomorrowOpenS = openS + DAY_S;
+  const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
+  return (tomorrowOpenS - currentS) * 1000;
+}
+
 function getMetarBrtHour(obs: ObservationResult): number {
   const brtS = Math.floor(obs.observedAtUtcMs / 1000) - 3 * 3600;
   return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
@@ -161,10 +199,10 @@ export async function runHotWindowLoop(
         config.dryRun ? Promise.resolve() : refreshBooks(clob, exactTokenIds),
       ]);
 
-      const brtH = getBrtHour(new Date());
-      const minH = Math.min(...city.targetHours);
-      const maxH = Math.max(...city.targetHours);
-      const sleepMs = brtH >= minH && brtH <= maxH ? 30_000 : 600_000;
+      const preciseSleep = msUntilNextHotWindow(Date.now(), city);
+      // If a hot window is imminent (< 2 min), wake up precisely then;
+      // otherwise use the standard long sleep to avoid busy-waiting.
+      const sleepMs = preciseSleep > 0 && preciseSleep < 120_000 ? preciseSleep : 600_000;
       await Bun.sleep(sleepMs);
     }
   }
