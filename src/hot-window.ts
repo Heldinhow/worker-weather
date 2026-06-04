@@ -81,17 +81,17 @@ export async function runHotObservationLoops(
   onObservation: (obs: ObservationResult | null, source: string) => void,
 ): Promise<void> {
   let stop = false;
-  const controllers: AbortController[] = [];
+  const controllers = new Set<AbortController>();
 
   const stopAll = () => {
     stop = true;
-    for (let i = 0; i < controllers.length; i++) controllers[i]!.abort();
+    for (const ac of controllers) ac.abort();
   };
 
   await Promise.all(sources.map(async ({ source, fetch }) => {
     while (!stop && isActive()) {
       const ac = new AbortController();
-      controllers.push(ac);
+      controllers.add(ac);
       const timeout = setTimeout(() => ac.abort(), 5_000);
 
       try {
@@ -102,8 +102,7 @@ export async function runHotObservationLoops(
         if (obs && shouldStop(obs)) stopAll();
       } finally {
         clearTimeout(timeout);
-        const idx = controllers.indexOf(ac);
-        if (idx >= 0) controllers.splice(idx, 1);
+        controllers.delete(ac);
       }
     }
   }));

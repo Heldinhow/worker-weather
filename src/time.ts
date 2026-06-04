@@ -1,9 +1,15 @@
 const DAY_S = 86_400;
 
+let lastFormatMs = -1;
+let lastFormatResult = "";
+
 export function formatBrt(dateOrMs: Date | number): string {
   const ms = typeof dateOrMs === "number" ? dateOrMs : dateOrMs.getTime();
+  if (ms === lastFormatMs) return lastFormatResult;
+  lastFormatMs = ms;
   const brt = new Date(ms - 3 * 3600_000);
-  return brt.toISOString().replace("T", " ").slice(0, 23) + " BRT";
+  lastFormatResult = brt.toISOString().replace("T", " ").slice(0, 23) + " BRT";
+  return lastFormatResult;
 }
 
 function brtHourMin(nowMs: number): { h: number; m: number } {
