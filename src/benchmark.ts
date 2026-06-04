@@ -133,9 +133,15 @@ async function runBenchmark(): Promise<void> {
   const fetchWithTimeout = <T>(fn: () => Promise<T>, ms: number): Promise<T | null> =>
     Promise.race([fn(), Bun.sleep(ms).then(() => null)]);
 
-  const noaaStart = performance.now();
-  const noaaResult = await fetchWithTimeout(() => fetchNoaa(city.icao), 5000);
-  const noaaMs = noaaResult === null ? 5000 : performance.now() - noaaStart;
+  // Cold NOAA fetch
+  const noaaColdStart = performance.now();
+  const noaaColdResult = await fetchWithTimeout(() => fetchNoaa(city.icao), 5000);
+  const noaaColdMs = noaaColdResult === null ? 5000 : performance.now() - noaaColdStart;
+
+  // Warm NOAA fetch (reuses TCP/TLS if keep-alive works)
+  const noaaWarmStart = performance.now();
+  const noaaWarmResult = await fetchWithTimeout(() => fetchNoaa(city.icao), 5000);
+  const noaaWarmMs = noaaWarmResult === null ? 5000 : performance.now() - noaaWarmStart;
 
   const awStart = performance.now();
   const awResult = await fetchWithTimeout(() => fetchAviationWeather(city.icao), 5000);
@@ -156,7 +162,8 @@ async function runBenchmark(): Promise<void> {
   console.log(`METRIC trader_fastpath_us=${Math.round(traderP50 * 1000)}`);
   console.log(`METRIC prepared_hit_rate=${preparedHitRate}`);
   console.log(`METRIC book_cache_hit_rate=${bookCacheHitRate}`);
-  console.log(`METRIC fetcher_noaa_ms=${Math.round(noaaMs * 10) / 10}`);
+  console.log(`METRIC fetcher_noaa_cold_ms=${Math.round(noaaColdMs * 10) / 10}`);
+  console.log(`METRIC fetcher_noaa_warm_ms=${Math.round(noaaWarmMs * 10) / 10}`);
   console.log(`METRIC fetcher_aw_ms=${Math.round(awMs * 10) / 10}`);
 
   log("benchmark", `done detection_to_submit_p50=${Math.round(dtsP50 * 1000)}µs prepared=${preparedHitRate} book=${bookCacheHitRate}`);

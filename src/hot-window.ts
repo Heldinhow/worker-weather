@@ -150,6 +150,10 @@ export async function runHotWindowLoop(
   if (!config.dryRun) {
     startBookStream(exactTokenIds, city.icao);
     void prepareOrders(clob, buckets, config);
+    // Warm-up HTTP connections so the first fetch inside the hot window
+    // reuses an already-established TCP/TLS handshake.
+    void fetchNoaa(city.icao).catch(() => undefined);
+    void fetchAviationWeather(city.icao).catch(() => undefined);
   }
 
   while (Date.now() < deadline) {
