@@ -9,6 +9,7 @@ import { loadConfig } from "../src/config.ts";
 import { initClobClient } from "../src/clob.ts";
 import { handleObs } from "../src/hot-window.ts";
 import type { BucketState } from "../src/types.ts";
+import { formatBucket, observedWholeTempInUnit, parseGammaMarket, sortBuckets, type GammaEvent } from "../src/markets.ts";
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
@@ -29,46 +30,18 @@ function buildSlug(citySlug: string, date?: string): string {
   return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
 }
 
-interface GammaMarket {
-  question: string;
-  clobTokenIds: string;
-  conditionId: string;
-}
-
-interface GammaEvent {
-  negRisk: boolean;
-  markets: GammaMarket[];
-}
-
 async function fetchBuckets(citySlug: string, date?: string): Promise<BucketState[]> {
   const slug = buildSlug(citySlug, date);
   const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`);
   const events = await resp.json() as GammaEvent[];
   const event = events[0]!;
 
-  const buckets: BucketState[] = event.markets.map(m => {
-    const [yesId, noId] = JSON.parse(m.clobTokenIds) as [string, string];
-    const tempMatch = m.question.match(/(\d+)°C/);
-    const tempC = tempMatch ? parseInt(tempMatch[1]!, 10) : 0;
-    const lq = m.question.toLowerCase();
-    const type: "exact" | "below" | "above" =
-      lq.includes("or below") ? "below" :
-      lq.includes("or higher") ? "above" : "exact";
-    return {
-      tempC,
-      type,
-      noTokenId: noId!,
-      yesTokenId: yesId!,
-      conditionId: m.conditionId,
-      negRisk: event.negRisk,
-      bought: false,
-      attempted: false,
-      pendingBuy: false,
-      peakBought: false,
-    };
+  const buckets = event.markets.flatMap(m => {
+    const bucket = parseGammaMarket(event, m);
+    return bucket ? [bucket] : [];
   });
 
-  buckets.sort((a, b) => a.tempC - b.tempC);
+  sortBuckets(buckets);
   return buckets;
 }
 
@@ -104,15 +77,18 @@ if (!city) {
 console.log(`[sim] fetching buckets for ${city.slug} (${icao}) date=${date ?? "today"}...`);
 const buckets = await fetchBuckets(city.slug, date);
 const exactBuckets = buckets.filter(b => b.type === "exact");
-console.log(`[sim] ${buckets.length} buckets loaded. exact: ${exactBuckets.map(b => `${b.tempC}°C`).join(", ")}`);
+console.log(`[sim] ${buckets.length} buckets loaded. exact: ${exactBuckets.map(formatBucket).join(", ")}`);
 
 const clob = await initClobClient(config);
 const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
 const observedMaxRef = { value: initialMax };
 
-const triggered = exactBuckets.filter(b => Math.floor(obs) > b.tempC);
-console.log(`[sim] obs=${obs}°C  initial-max=${initialMax}°C  floor(obs)=${Math.floor(obs)}`);
-console.log(`[sim] expected triggers: ${triggered.length > 0 ? triggered.map(b => `${b.tempC}°C`).join(", ") : "none"}`);
+const triggered = exactBuckets.filter(b => observedWholeTempInUnit(obs, b.unit) > b.upperTemp);
+const observedUnits = [...new Set(exactBuckets.map(b => b.unit))]
+  .map(unit => `${observedWholeTempInUnit(obs, unit)}°${unit}`)
+  .join(" / ");
+console.log(`[sim] obs=${obs}°C  initial-max=${initialMax}°C  resolved=${observedUnits}`);
+console.log(`[sim] expected triggers: ${triggered.length > 0 ? triggered.map(formatBucket).join(", ") : "none"}`);
 console.log(`[sim] firing handleObs...\n`);
 
 handleObs(

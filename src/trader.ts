@@ -4,8 +4,12 @@ import type { Config } from "./config.ts";
 import { getCachedAsks, getCachedAsksFast } from "./book-cache.ts";
 import { getPreparedOrders, getPreparedYesOrder, getPreparedPeakNoOrder, limitShares, LIMIT_PRICE, YES_LIMIT_PRICE, PEAK_NO_LIMIT_PRICE, snapShares, type PreparedOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
+import { formatBucket } from "./markets.ts";
 
 const LIMIT_PRICE_STR = String(LIMIT_PRICE);
+const CONTESTED_NO_STRATEGY = "strategy=contested-no";
+const PEAK_YES_STRATEGY = "strategy=peak-yes";
+const PEAK_NO_STRATEGY = "strategy=peak-no";
 
 export async function postOrder(
   clob: ClobClient,
@@ -20,12 +24,12 @@ export async function postOrder(
     // eliminates all cache-state branches from the hot path.
     const t0 = performance.now();
     if (config.dryRun) {
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} [DRY RUN]`);
+      log("trader", `attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} [DRY RUN]`);
       bucket.bought = true;
     } else {
       const submit = clob.postOrder(prepared.limitOrder, OrderType.FAK);
       const elapsedUs = Math.round((performance.now() - t0) * 1000);
-      log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} prepared=true hotPath=${elapsedUs}µs`);
+      log("trader", `attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} reason=prepared price≤${LIMIT_PRICE_STR} shares=${prepared.shares} prepared=true hotPath=${elapsedUs}µs`);
       const resp = await submit;
       logResult("trader", resp, bucket);
       if (String(resp?.status ?? "") === "matched") bucket.bought = true;
@@ -68,7 +72,7 @@ export async function postOrder(
     await postLimitFak(clob, bucket, config, sharesRounded, "book-sweep");
 
   } catch (err) {
-    log("trader", `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${err}`);
+    log("trader", `error ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} err=${err}`);
   } finally {
     bucket.pendingBuy = false;
   }
@@ -85,7 +89,7 @@ async function postLimitFak(
   const orderShares = prepared?.shares ?? shares;
 
   if (config.dryRun) {
-    log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares} [DRY RUN]`);
+    log("trader", `attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares} [DRY RUN]`);
     bucket.bought = true;
     return;
   }
@@ -98,7 +102,7 @@ async function postLimitFak(
     );
 
   const submit = clob.postOrder(order, OrderType.FAK);
-  log("trader", `attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares}${prepared ? " prepared=true" : ""}`);
+  log("trader", `attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} reason=${reason} price≤${LIMIT_PRICE_STR} shares=${orderShares}${prepared ? " prepared=true" : ""}`);
   const resp = await submit;
   logResult("trader", resp, bucket);
   if (String(resp?.status ?? "") === "matched") bucket.bought = true;
@@ -113,7 +117,7 @@ function postBlindExperiment(
   const shares = limitShares(config);
 
   if (config.dryRun) {
-    log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake} [DRY RUN]`);
+    log("trader", `blind attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake} [DRY RUN]`);
     bucket.bought = true;
     return Promise.resolve();
   }
@@ -132,7 +136,7 @@ function postBlindExperiment(
       { tickSize: "0.01", negRisk: bucket.negRisk },
       OrderType.FAK,
     );
-  log("trader", `blind attempt tokenId=${bucket.noTokenId} tempC=${bucket.tempC} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake}${prepared ? " prepared=true" : ""}`);
+  log("trader", `blind attempt ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} limit-fak price=${LIMIT_PRICE_STR} shares=${shares} market-fak amount=${config.maxStake}${prepared ? " prepared=true" : ""}`);
 
   return Promise.allSettled([
     limitSubmit,
@@ -143,7 +147,7 @@ function postBlindExperiment(
         logResult(`trader/${label}`, result.value, bucket);
         if (String(result.value?.status ?? "") === "matched") bucket.bought = true;
       } else {
-        log(`trader/${label}`, `error tokenId=${bucket.noTokenId} tempC=${bucket.tempC} err=${result.reason}`);
+        log(`trader/${label}`, `error ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} err=${result.reason}`);
       }
     }
   });
@@ -162,7 +166,7 @@ export function postPeakOrders(
 async function postPeakYes(clob: ClobClient, bucket: BucketState, config: Config): Promise<void> {
   const prepared = getPreparedYesOrder(bucket.yesTokenId);
   if (config.dryRun) {
-    log("peak/yes", `attempt yesTokenId=${bucket.yesTokenId} tempC=${bucket.tempC} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
+    log("peak/yes", `attempt ${PEAK_YES_STRATEGY} yesTokenId=${bucket.yesTokenId} bucket=${formatBucket(bucket)} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
     return;
   }
   const t0 = performance.now();
@@ -172,15 +176,15 @@ async function postPeakYes(clob: ClobClient, bucket: BucketState, config: Config
   );
   const submit = clob.postOrder(order, OrderType.FAK);
   const elapsedUs = Math.round((performance.now() - t0) * 1000);
-  log("peak/yes", `attempt yesTokenId=${bucket.yesTokenId} tempC=${bucket.tempC} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
+  log("peak/yes", `attempt ${PEAK_YES_STRATEGY} yesTokenId=${bucket.yesTokenId} bucket=${formatBucket(bucket)} price≤${YES_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
   const resp = await submit;
-  logPeakResult("peak/yes", resp, bucket.yesTokenId, bucket.tempC);
+  logPeakResult("peak/yes", resp, bucket.yesTokenId, bucket);
 }
 
 async function postPeakNo(clob: ClobClient, bucket: BucketState, config: Config): Promise<void> {
   const prepared = getPreparedPeakNoOrder(bucket.noTokenId);
   if (config.dryRun) {
-    log("peak/no", `attempt noTokenId=${bucket.noTokenId} tempC=${bucket.tempC} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
+    log("peak/no", `attempt ${PEAK_NO_STRATEGY} noTokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"} [DRY RUN]`);
     return;
   }
   const t0 = performance.now();
@@ -190,21 +194,22 @@ async function postPeakNo(clob: ClobClient, bucket: BucketState, config: Config)
   );
   const submit = clob.postOrder(order, OrderType.FAK);
   const elapsedUs = Math.round((performance.now() - t0) * 1000);
-  log("peak/no", `attempt noTokenId=${bucket.noTokenId} tempC=${bucket.tempC} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
+  log("peak/no", `attempt ${PEAK_NO_STRATEGY} noTokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)} price≤${PEAK_NO_LIMIT_PRICE} shares=${prepared?.shares ?? "?"}${prepared ? " prepared=true" : ""} hotPath=${elapsedUs}µs`);
   const resp = await submit;
-  logPeakResult("peak/no", resp, bucket.noTokenId, bucket.tempC);
+  logPeakResult("peak/no", resp, bucket.noTokenId, bucket);
 }
 
-function logPeakResult(tag: string, resp: any, tokenId: string, tempC: number): void {
+function logPeakResult(tag: string, resp: any, tokenId: string, bucket: BucketState): void {
   const status = String(resp?.status ?? "unknown");
   const errDetail: string = resp?.errorMsg || resp?.error || "";
-  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${tokenId} tempC=${tempC}`);
+  const strategy = tag === "peak/yes" ? PEAK_YES_STRATEGY : PEAK_NO_STRATEGY;
+  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} ${strategy} tokenId=${tokenId} bucket=${formatBucket(bucket)}`);
 }
 
 function logResult(tag: string, resp: any, bucket: BucketState): void {
   const status = String(resp?.status ?? "unknown");
   const errDetail: string = resp?.errorMsg || resp?.error || "";
-  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} tokenId=${bucket.noTokenId} tempC=${bucket.tempC}`);
+  log(tag, `result=${status}${errDetail ? ` msg="${errDetail}"` : ""} ${CONTESTED_NO_STRATEGY} tokenId=${bucket.noTokenId} bucket=${formatBucket(bucket)}`);
   // Book was empty at execution time — another bot swept it; no point retrying.
   if (status === "400" && errDetail.includes("no orders found")) bucket.attempted = true;
 }

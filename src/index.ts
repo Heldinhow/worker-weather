@@ -6,6 +6,7 @@ import { runHotWindowLoop } from "./hot-window.ts";
 import { log, registerCityColor } from "./logger.ts";
 import { startDashboard } from "./dashboard.ts";
 import { todaySlug } from "./time.ts";
+import { parseGammaMarket, sortBuckets, type GammaEvent } from "./markets.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();
@@ -13,17 +14,6 @@ function getMsUntilMidnightBrt(): number {
   const dayMs = 86_400_000;
   const tomorrowStartBrt = Math.floor(brtMs / dayMs) * dayMs + dayMs;
   return tomorrowStartBrt - brtMs;
-}
-
-interface GammaMarket {
-  question: string;
-  clobTokenIds: string;
-  conditionId: string;
-}
-
-interface GammaEvent {
-  negRisk: boolean;
-  markets: GammaMarket[];
 }
 
 const slugCache = new Map<string, { slug: string; buckets: BucketState[] }>();
@@ -35,33 +25,26 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
 
   const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`, { keepalive: true });
   const events = await resp.json() as GammaEvent[];
-  const event = events[0]!;
+  const event = events[0];
 
-  const buckets: BucketState[] = event.markets.map(m => {
-    const [yesId, noId] = JSON.parse(m.clobTokenIds) as [string, string];
-    const tempMatch = m.question.match(/(\d+)°C/);
-    const tempC = tempMatch ? parseInt(tempMatch[1]!, 10) : 0;
-    const lq = m.question.toLowerCase();
-    const type: "exact" | "below" | "above" =
-      lq.includes("or below") ? "below" :
-      lq.includes("or higher") ? "above" : "exact";
+  if (!event) {
+    log("warn", `Skipping ${city.slug}: Gamma API returned empty events for slug=${slug}`);
+    const result = { slug, buckets: [] };
+    slugCache.set(slug, result);
+    return result;
+  }
 
-    return {
-      tempC,
-      type,
-      noTokenId: noId!,
-      yesTokenId: yesId!,
-      conditionId: m.conditionId,
-      negRisk: event.negRisk,
-      bought: false,
-      attempted: false,
-      pendingBuy: false,
-      peakBought: false,
-    };
-  });
+  const buckets: BucketState[] = [];
+  for (const market of event.markets) {
+    const bucket = parseGammaMarket(event, market);
+    if (bucket) {
+      buckets.push(bucket);
+    } else {
+      log("warn", `Skipping bucket: could not parse temperature slug=${slug} question="${market.question}"`);
+    }
+  }
 
-  // Sort ascending by tempC so evaluateBuckets can break early
-  buckets.sort((a, b) => a.tempC - b.tempC);
+  sortBuckets(buckets);
 
   const result = { slug, buckets };
   slugCache.set(slug, result);

@@ -1,18 +1,18 @@
 # weather-100-percent
 
-Bot de trading para mercados de temperatura no Polymarket. Monitora observações METAR em tempo real e executa três estratégias complementares: **Contested NO** (buckets impossíveis para o dia), **Peak Detection** (queda confirma o pico) e **Daily Peak Trigger** (safety net horário às 15h).
+Bot de trading para mercados de temperatura no Polymarket. Monitora observações METAR em tempo real e executa estratégias complementares: **Contested NO** (buckets impossíveis para o dia), **Peak Detection** (queda confirma o pico) e **Daily Peak Trigger** (safety net horário às 16h).
 
 ## Como funciona
 
 ### Domínio
 
-O Polymarket publica eventos do tipo _"highest temperature in São Paulo on June 2, 2026"_. Cada evento tem vários **buckets**: mercados binários para um valor exato de temperatura em °C (ex.: "exactly 18°C"). O bot opera exclusivamente sobre buckets do tipo `exact`.
+O Polymarket publica eventos do tipo _"highest temperature in São Paulo on June 2, 2026"_. Cada evento tem vários **buckets**: outcomes binários finitos para um valor inteiro em °C (ex.: `18°C`) ou para um range inteiro em °F (ex.: `78-79°F`). O bot opera exclusivamente sobre buckets finitos do meio; buckets abertos `or below` e `or higher` continuam ignorados.
 
 O bot mantém um **ObservedMax** por cidade — a temperatura máxima observada hoje via METAR. À medida que o ObservedMax sobe durante o dia, três oportunidades surgem:
 
 1. **Buckets impossíveis** — qualquer bucket abaixo do ObservedMax nunca resolverá em YES. São compras de NO a preço próximo de 1.00 (*Contested NO*).
 2. **Pico confirmado por queda** — quando a temperatura cai depois de uma máxima entre 12h–16h, o bucket do pico tem alta probabilidade de resolver YES e o bucket acima tem alta probabilidade de resolver NO (*Peak Detection*).
-3. **Pico confirmado por horário** — o pico de temperatura máxima ocorre normalmente até às 15h. Se nenhuma queda foi detectada, o primeiro METAR da 15h serve de gatilho para a mesma posição (*Daily Peak Trigger*).
+3. **Pico confirmado por horário** — se nenhuma queda foi detectada, o primeiro METAR da hora configurada (16h por padrão) serve de gatilho para a mesma posição, mesmo sem queda detectada (*Daily Peak Trigger*).
 
 ### Fontes de dados
 
@@ -21,14 +21,14 @@ As temperaturas vêm de METARs — relatórios padronizados de aviação emitido
 - **NOAA TGFTP** (`tgftp.nws.noaa.gov`) — texto plano
 - **AviationWeather** (`aviationweather.gov/api/data/metar`) — JSON
 
-A primeira resposta que elevar o `ObservedMax` dispara a avaliação dos buckets.
+Dentro da Hot Window, a primeira resposta que elevar o `ObservedMax` dispara a avaliação dos buckets. Fora da Hot Window, o warm poll apenas semeia/atualiza `ObservedMax` e o Dashboard; não posta Contested NO.
 
 ### Hot Window
 
 O bot opera em dois modos de polling:
 
-- **Warm poll**: fora do hot window, busca METARs a cada 30 s (durante as horas de operação) ou 10 min (fora delas), mantém o book cache atualizado e prepara ordens assinadas.
-- **Hot window**: dos 53 min da hora anterior até os 4 min da hora alvo (ex.: 09:53–10:04 para o mercado das 10h), cada endpoint roda em loop próprio, contínuo e sem sleep. Cada resposta de METAR é processada assim que chega, sem esperar o outro endpoint.
+- **Warm poll**: fora do hot window, busca METARs, mantém o book cache atualizado, prepara ordens assinadas e semeia `ObservedMax` sem postar Contested NO.
+- **Hot window**: no timezone configurado da cidade, dos minutos configurados da hora anterior até os minutos configurados da hora alvo (ex.: 09:53–10:04 locais para o mercado das 10h), cada endpoint roda em loop próprio, contínuo e sem sleep. Cada resposta de METAR é processada assim que chega, sem esperar o outro endpoint.
 - **Book stream**: o cache de asks recebe snapshots e updates pelo websocket de market data do Polymarket, com refresh REST como fallback.
 - **Prewarm**: antes da disputa, o bot aquece metadata do CLOB e pré-assina ordens FAK de limite e market por bucket exact.
 
@@ -42,28 +42,28 @@ O bot suporta três estratégias, controladas pela variável `STRATEGY`. Cada um
 
 Compra NO nos buckets que se tornaram meteorologicamente impossíveis para o dia.
 
-**Condição:** `floor(ObservedMax) > bucket.tempC`
+**Condição:** `floor(convert(ObservedMax, bucket.unit)) > bucket.upperTemp`
 
-Quando o ObservedMax sobe, todos os buckets abaixo do novo piso são avaliados. Para cada bucket ainda não comprado, dispara um FAK imediatamente. Não tem estado de dia: reavalía a cada nova observação que elevar o ObservedMax.
+Durante a Hot Window, quando o ObservedMax sobe, ele é convertido para a unidade do bucket (`°C` ou `°F`) e só então arredondado para baixo ao grau inteiro usado pelo mercado. Para cada bucket ainda não comprado cujo limite superior já foi ultrapassado, dispara um FAK imediatamente. Ex.: `12.2°C` não compra NO em `12°C`; só `13.0°C` ou mais. Em bucket `70-71°F`, só compra quando `floor(ObservedMax em °F) > 71`.
 
 ```
-METAR (tempC > ObservedMax)
+METAR na Hot Window (tempC > ObservedMax)
   └─ evaluateBuckets
        └─ postOrder (FAK NO, limite 0.99) — paralelo por bucket
 ```
 
 ---
 
-#### `peak` — Peak Detection + Daily Peak Trigger
+#### `peak` — Peak Detection
 
-Duas sub-estratégias complementares que compram YES no bucket do pico e NO no bucket imediatamente acima. Partilham o flag `peakTriggered`: quem disparar primeiro vence, a outra torna-se no-op.
+Compra YES no bucket do pico e NO no bucket imediatamente acima quando uma queda confirma que o pico passou. Também ativa o gatilho horário configurado por `PEAK_TRIGGER_HOUR` (16h por padrão). As duas sub-estratégias partilham o flag `peakTriggered`: quem disparar primeiro vence, a outra torna-se no-op.
 
 **Peak Detection** (`evaluatePeakDrop`)
 
 Dispara quando uma observação de temperatura mais baixa confirma que o pico passou. Ativo entre 12h–16h (hora local da cidade).
 
 - Condição: `obs.tempC < ObservedMax` enquanto `localHour ∈ [12, 16)`
-- Compra: YES@`floor(ObservedMax)` a 0.95 + NO@`floor(ObservedMax)+1` a 0.97
+- Compra: YES no bucket que contém `floor(convert(ObservedMax, bucket.unit))` a 0.95 + NO no próximo bucket finito acima a 0.97
 
 ```
 METAR (tempC < ObservedMax, 12h–16h local)
@@ -74,14 +74,14 @@ METAR (tempC < ObservedMax, 12h–16h local)
 
 **Daily Peak Trigger** (`evaluatePeakAtHour`)
 
-Safety net baseado em horário: o pico de temperatura máxima ocorre normalmente até às 15h. Se o Peak Detection ainda não disparou, o primeiro METAR da hora de disparo (15h local por defeito) encerra a posição com o ObservedMax do momento — mesmo sem ter observado queda de temperatura.
+Safety net baseado em horário. Se o Peak Detection ainda não disparou, o primeiro METAR da hora de disparo (`PEAK_TRIGGER_HOUR`, 16h local por padrão) encerra a posição com o ObservedMax do momento — mesmo sem ter observado queda de temperatura.
 
-- Condição: `metarLocalHour === 15` e `peakTriggered === false`
-- Se a temperatura subiu no METAR das 15h, o ObservedMax é actualizado antes do disparo.
-- Compra: YES@`floor(ObservedMax)` a 0.95 + NO@`floor(ObservedMax)+1` a 0.97
+- Condição: `DAILY_PEAK_TRIGGER !== false`, `metarLocalHour === PEAK_TRIGGER_HOUR` e `peakTriggered === false`
+- Se a temperatura subiu no METAR da hora de gatilho, o ObservedMax é actualizado antes do disparo.
+- Compra: YES no bucket que contém `floor(convert(ObservedMax, bucket.unit))` a 0.95 + NO no próximo bucket finito acima a 0.97
 
 ```
-METAR (observedAt hora local === 15)
+METAR (observedAt hora local === PEAK_TRIGGER_HOUR)
   └─ evaluatePeakAtHour
        ├─ postPeakYes (FAK YES, limite 0.95)
        └─ postPeakNo  (FAK NO,  limite 0.97)
@@ -101,11 +101,11 @@ Corre as estratégias `no` e `peak` em simultâneo sobre cada observação. Úti
 METAR
   └─ handleObs
        ├─ [tempC > ObservedMax] → atualiza ObservedMax
-       │    ├─ evaluateBuckets   → postOrder (NO, 0.99) por bucket contestado
-       │    └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = 15
+       │    ├─ [Hot Window] evaluateBuckets → postOrder (NO, 0.99) por bucket contestado
+       │    └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = PEAK_TRIGGER_HOUR
        └─ [tempC ≤ ObservedMax, ObservedMax ≠ -∞]
             ├─ evaluatePeakDrop   → postPeakYes + postPeakNo se queda 12h–16h
-            └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = 15
+            └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = PEAK_TRIGGER_HOUR
 ```
 
 As chamadas a `postOrder` para múltiplos buckets são disparadas em paralelo (fire-and-forget no event loop).
@@ -135,8 +135,10 @@ MIN_SHARES=5         # mínimo de shares para ordem FAK pré-assinada
 PROD=false           # true: aplica guarda de custo mínimo (≥ $1.00 por ordem)
 DRY_RUN=false        # true: loga tudo mas nunca chama o CLOB
 STRATEGY=no          # no | peak | both  (ver secção Estratégias)
+DAILY_PEAK_TRIGGER=true   # false desativa o gatilho horário sem queda confirmada
+PEAK_TRIGGER_HOUR=16      # hora local usada pelo Daily Peak Trigger
 
-TARGET_HOURS=10,11,12,13,14,15,16        # horas BRT com hot window ativo
+TARGET_HOURS=10,11,12,13,14,15,16        # horas locais da cidade com hot window ativo
 ```
 
 > `.env` está no `.gitignore` — nunca comite credenciais.
@@ -174,25 +176,25 @@ bun --env-file=.env scripts/simulate-detection.ts \
 | `--obs` | Temperatura da observação simulada (°C) |
 | `--initial-max` | ObservedMax inicial antes da observação (°C) |
 
-O script dispara compras para todos os buckets onde `floor(--obs) > tempC`. Com `DRY_RUN=false` as ordens chegam ao CLOB — se a wallet não tiver saldo ou o mercado já estiver encerrado, o `postOrder` captura o erro e loga sem travar.
+O script dispara compras para todos os buckets onde `floor(convert(--obs, bucket.unit)) > bucket.upperTemp`. Com `DRY_RUN=false` as ordens chegam ao CLOB — se a wallet não tiver saldo ou o mercado já estiver encerrado, o `postOrder` captura o erro e loga sem travar.
 
 ### Exemplo de saída
 
 ```
 [sim] fetching buckets for sao-paulo (SBGR)...
 [sim] 9 buckets loaded. exact: 16°C, 17°C, 18°C, 19°C, 20°C, 21°C, 22°C, 23°C, 24°C
-[sim] obs=19.5°C  initial-max=17.0°C  floor(obs)=19
+[sim] obs=19.5°C  initial-max=17.0°C  resolved=19°C
 [sim] expected triggers: 16°C, 17°C, 18°C
 [sim] firing handleObs...
 
 2026-06-02 21:38:27 BRT [sim/SBGR] tempC=19.5 metar=2026-06-02 21:38:27 BRT
 2026-06-02 21:38:27 BRT [sim/SBGR] observedMax 17 → 19.5
-2026-06-02 21:38:27 BRT [trader] attempt tokenId=... tempC=16 price=0.99 shares=4.04 cost=3.9996 blind=true
-2026-06-02 21:38:27 BRT [trader] attempt tokenId=... tempC=17 price=0.99 shares=4.04 cost=3.9996 blind=true
-2026-06-02 21:38:27 BRT [trader] attempt tokenId=... tempC=18 price=0.99 shares=4.04 cost=3.9996 blind=true
-2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... tempC=16
-2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... tempC=17
-2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... tempC=18
+2026-06-02 21:38:27 BRT [trader] attempt tokenId=... bucket=16°C price≤0.99 shares=4.04
+2026-06-02 21:38:27 BRT [trader] attempt tokenId=... bucket=17°C price≤0.99 shares=4.04
+2026-06-02 21:38:27 BRT [trader] attempt tokenId=... bucket=18°C price≤0.99 shares=4.04
+2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... bucket=16°C
+2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... bucket=17°C
+2026-06-02 21:38:28 BRT [trader] result=400 tokenId=... bucket=18°C
 ```
 
 Os três `attempt` aparecem em ~3 ms (paralelo). Os `result` chegam ~550 ms depois (round-trip CLOB). `result=400` indica mercado encerrado ou saldo insuficiente — comportamento esperado em teste.

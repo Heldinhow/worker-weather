@@ -7,6 +7,7 @@ export type CityConfig = {
   targetHours: number[];
   hotWindowStart: number;
   hotWindowEnd: number;
+  enabled?: boolean;
 };
 
 export type Config = {
@@ -19,6 +20,8 @@ export type Config = {
   funderAddress: string | undefined;
   signatureType: string | undefined;
   strategy: "no" | "peak" | "both";
+  dailyPeakTrigger: boolean;
+  peakTriggerHour: number;
 };
 
 export function loadConfig(): Config {
@@ -28,7 +31,7 @@ export function loadConfig(): Config {
   }
 
   return {
-    cities: cities as CityConfig[],
+    cities: (cities as CityConfig[]).filter(city => city.enabled !== false),
     maxStake: Number(process.env.MAX_STAKE ?? "4"),
     minShares: Number(process.env.MIN_SHARES ?? "5"),
     prod: (process.env.PROD ?? "false") === "true",
@@ -37,5 +40,7 @@ export function loadConfig(): Config {
     funderAddress: process.env.POLY_FUNDER_ADDRESS || undefined,
     signatureType: process.env.POLY_SIGNATURE_TYPE || undefined,
     strategy: (process.env.STRATEGY ?? "no") as "no" | "peak" | "both",
+    dailyPeakTrigger: (process.env.DAILY_PEAK_TRIGGER ?? "true") === "true",
+    peakTriggerHour: Number(process.env.PEAK_TRIGGER_HOUR ?? "16"),
   };
 }

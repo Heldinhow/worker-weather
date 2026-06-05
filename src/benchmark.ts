@@ -10,17 +10,7 @@ import { refreshBooks, startBookStream, getCachedAsksFast, applyMarketMessage } 
 import type { BucketState, ObservationResult } from "./types.ts";
 import { log } from "./logger.ts";
 import { todaySlug } from "./time.ts";
-
-interface GammaMarket {
-  question: string;
-  clobTokenIds: string;
-  conditionId: string;
-}
-
-interface GammaEvent {
-  negRisk: boolean;
-  markets: GammaMarket[];
-}
+import { parseGammaMarket, sortBuckets, type GammaEvent } from "./markets.ts";
 
 async function resolveMarkets(city: CityConfig): Promise<BucketState[]> {
   const slug = todaySlug(city.slug);
@@ -28,30 +18,12 @@ async function resolveMarkets(city: CityConfig): Promise<BucketState[]> {
   const events = await resp.json() as GammaEvent[];
   const event = events[0]!;
 
-  const buckets: BucketState[] = event.markets.map(m => {
-    const [yesId, noId] = JSON.parse(m.clobTokenIds) as [string, string];
-    const tempMatch = m.question.match(/(\d+)°C/);
-    const tempC = tempMatch ? parseInt(tempMatch[1]!, 10) : 0;
-    const lq = m.question.toLowerCase();
-    const type: "exact" | "below" | "above" =
-      lq.includes("or below") ? "below" :
-      lq.includes("or higher") ? "above" : "exact";
-
-    return {
-      tempC,
-      type,
-      noTokenId: noId!,
-      yesTokenId: yesId!,
-      conditionId: m.conditionId,
-      negRisk: event.negRisk,
-      bought: false,
-      attempted: false,
-      pendingBuy: false,
-      peakBought: false,
-    };
+  const buckets = event.markets.flatMap(m => {
+    const bucket = parseGammaMarket(event, m);
+    return bucket ? [bucket] : [];
   });
 
-  buckets.sort((a, b) => a.tempC - b.tempC);
+  sortBuckets(buckets);
   return buckets;
 }
 

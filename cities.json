@@ -180,7 +180,7 @@
     "hotWindowEnd": 57
   },
   {
-    "slug": "new-york",
+    "slug": "nyc",
     "icao": "KJFK",
     "timezone": "America/New_York",
     "targetHours": [
@@ -237,7 +237,8 @@
       16
     ],
     "hotWindowStart": 20,
-    "hotWindowEnd": 25
+    "hotWindowEnd": 25,
+    "enabled": false
   },
   {
     "slug": "paris",
@@ -252,7 +253,8 @@
       16
     ],
     "hotWindowStart": 0,
-    "hotWindowEnd": 5
+    "hotWindowEnd": 5,
+    "enabled": false
   },
   {
     "slug": "munich",
@@ -267,7 +269,8 @@
       16
     ],
     "hotWindowStart": 19,
-    "hotWindowEnd": 24
+    "hotWindowEnd": 24,
+    "enabled": false
   },
   {
     "slug": "madrid",
@@ -282,7 +285,8 @@
       16
     ],
     "hotWindowStart": 0,
-    "hotWindowEnd": 5
+    "hotWindowEnd": 5,
+    "enabled": false
   },
   {
     "slug": "milan",
@@ -297,7 +301,8 @@
       16
     ],
     "hotWindowStart": 24,
-    "hotWindowEnd": 29
+    "hotWindowEnd": 29,
+    "enabled": false
   },
   {
     "slug": "istanbul",
@@ -312,7 +317,8 @@
       16
     ],
     "hotWindowStart": 21,
-    "hotWindowEnd": 26
+    "hotWindowEnd": 26,
+    "enabled": false
   },
   {
     "slug": "ankara",
@@ -327,7 +333,8 @@
       16
     ],
     "hotWindowStart": 21,
-    "hotWindowEnd": 26
+    "hotWindowEnd": 26,
+    "enabled": false
   },
   {
     "slug": "warsaw",
@@ -342,7 +349,8 @@
       16
     ],
     "hotWindowStart": 0,
-    "hotWindowEnd": 5
+    "hotWindowEnd": 5,
+    "enabled": false
   },
   {
     "slug": "helsinki",
@@ -357,7 +365,8 @@
       16
     ],
     "hotWindowStart": 17,
-    "hotWindowEnd": 22
+    "hotWindowEnd": 22,
+    "enabled": false
   },
   {
     "slug": "amsterdam",
@@ -372,7 +381,8 @@
       16
     ],
     "hotWindowStart": 23,
-    "hotWindowEnd": 28
+    "hotWindowEnd": 28,
+    "enabled": false
   },
   {
     "slug": "moscow",
@@ -387,6 +397,7 @@
       16
     ],
     "hotWindowStart": 0,
-    "hotWindowEnd": 5
+    "hotWindowEnd": 5,
+    "enabled": false
   }
 ]

@@ -20,6 +20,8 @@ const config: Config = {
   funderAddress: undefined,
   signatureType: undefined,
   strategy: "no" as const,
+  dailyPeakTrigger: true,
+  peakTriggerHour: 16,
 };
 
 type SubmitRecorder = {
@@ -44,6 +46,10 @@ function summarize(values: number[]): { min: number; p50: number; p95: number; m
 function makeBucket(tokenSuffix: string, tempC = 24): BucketState {
   return {
     tempC,
+    lowerTemp: tempC,
+    upperTemp: tempC,
+    unit: "C",
+    label: `${tempC}°C`,
     type: "exact",
     noTokenId: `token-${tokenSuffix}`,
     yesTokenId: `yes-token-${tokenSuffix}`,

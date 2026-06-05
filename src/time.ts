@@ -1,12 +1,38 @@
-const DAY_S = 86_400;
+type LocalTimeParts = { h: number; m: number; s: number };
+
+const localTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function localTimeFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = localTimeFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hourCycle: "h23",
+      timeZone: timezone,
+    });
+    localTimeFormatters.set(timezone, formatter);
+  }
+  return formatter;
+}
+
+function getLocalTimeParts(utcMs: number, timezone: string): LocalTimeParts {
+  const parts = localTimeFormatter(timezone).formatToParts(new Date(utcMs));
+  return {
+    h: Number(parts.find(p => p.type === "hour")!.value),
+    m: Number(parts.find(p => p.type === "minute")!.value),
+    s: Number(parts.find(p => p.type === "second")!.value),
+  };
+}
 
 export function getLocalHour(utcMs: number, timezone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hourCycle: "h23",
-    timeZone: timezone,
-  }).formatToParts(new Date(utcMs));
-  return Number(parts.find(p => p.type === "hour")!.value);
+  return getLocalTimeParts(utcMs, timezone).h;
+}
+
+export function getLocalSecondsSinceMidnight(utcMs: number, timezone: string): number {
+  const { h, m, s } = getLocalTimeParts(utcMs, timezone);
+  return h * 3600 + m * 60 + s + (utcMs % 1000) / 1000;
 }
 
 const MONTHS = [
@@ -34,28 +60,24 @@ export function formatBrt(dateOrMs: Date | number): string {
   return lastFormatResult;
 }
 
-function brtHourMin(nowMs: number): { h: number; m: number } {
-  const brtS = Math.floor(nowMs / 1000) - 3 * 3600;
-  const dayS = ((brtS % DAY_S) + DAY_S) % DAY_S;
-  return { h: Math.floor(dayS / 3600), m: Math.floor((dayS % 3600) / 60) };
-}
-
 export function isHotWindow(
   now: Date,
-  targetHourBrt: number,
+  targetHourLocal: number,
   windowStart: number,
   windowEnd: number,
+  timezone = "America/Sao_Paulo",
 ): boolean {
-  return isHotWindowMs(now.getTime(), targetHourBrt, windowStart, windowEnd);
+  return isHotWindowMs(now.getTime(), targetHourLocal, windowStart, windowEnd, timezone);
 }
 
 export function isHotWindowMs(
   nowMs: number,
-  targetHourBrt: number,
+  targetHourLocal: number,
   windowStart: number,
   windowEnd: number,
+  timezone = "America/Sao_Paulo",
 ): boolean {
-  const { h, m } = brtHourMin(nowMs);
-  const prevH = (targetHourBrt - 1 + 24) % 24;
-  return (h === prevH && m >= windowStart) || (h === targetHourBrt && m <= windowEnd);
+  const { h, m } = getLocalTimeParts(nowMs, timezone);
+  const prevH = (targetHourLocal - 1 + 24) % 24;
+  return (h === prevH && m >= windowStart) || (h === targetHourLocal && m <= windowEnd);
 }

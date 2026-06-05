@@ -15,12 +15,18 @@ const config: Config = {
   funderAddress: undefined,
   signatureType: undefined,
   strategy: "no" as const,
+  dailyPeakTrigger: true,
+  peakTriggerHour: 16,
 };
 
 describe("postOrder", () => {
   test("uses prepared blind limit and market orders without signing on trigger", async () => {
     const bucket: BucketState = {
       tempC: 20,
+      lowerTemp: 20,
+      upperTemp: 20,
+      unit: "C",
+      label: "20°C",
       type: "exact",
       noTokenId: "token-trader",
       yesTokenId: "yes-token-trader",

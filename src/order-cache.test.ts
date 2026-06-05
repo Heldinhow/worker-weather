@@ -14,10 +14,16 @@ const config: Config = {
   funderAddress: undefined,
   signatureType: undefined,
   strategy: "no" as const,
+  dailyPeakTrigger: true,
+  peakTriggerHour: 16,
 };
 
 const exactBucket: BucketState = {
   tempC: 20,
+  lowerTemp: 20,
+  upperTemp: 20,
+  unit: "C",
+  label: "20°C",
   type: "exact",
   noTokenId: "token-20",
   yesTokenId: "yes-token-20",

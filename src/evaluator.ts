@@ -1,19 +1,45 @@
 import type { BucketState } from "./types.ts";
+import { observedWholeTempInUnit } from "./markets.ts";
 
-// Expects buckets sorted ascending by tempC for the early-break to work correctly.
 export function evaluateBuckets(
   observedMaxTempC: number,
   buckets: BucketState[],
   postOrder: (bucket: BucketState) => void,
 ): void {
-  const intMax = Math.floor(observedMaxTempC);
   for (const b of buckets) {
     if (b.type !== "exact") continue;
-    if (intMax <= b.tempC) break; // sorted asc: all remaining are also not surpassed
+    const observedWhole = observedWholeTempInUnit(observedMaxTempC, b.unit);
+    if (observedWhole <= b.upperTemp) continue;
     if (b.bought || b.attempted || b.pendingBuy) continue;
     b.pendingBuy = true;
     postOrder(b);
   }
+}
+
+function findPeakBuckets(observedMaxTempC: number, buckets: BucketState[]): {
+  yesBucket: BucketState | undefined;
+  noBucket: BucketState | undefined;
+} {
+  for (let i = 0; i < buckets.length; i++) {
+    const b = buckets[i]!;
+    if (b.type !== "exact") continue;
+
+    const observedWhole = observedWholeTempInUnit(observedMaxTempC, b.unit);
+    if (observedWhole < b.lowerTemp || observedWhole > b.upperTemp) continue;
+
+    let noBucket: BucketState | undefined;
+    for (let j = i + 1; j < buckets.length; j++) {
+      const candidate = buckets[j]!;
+      if (candidate.type === "exact" && candidate.unit === b.unit) {
+        noBucket = candidate;
+        break;
+      }
+    }
+
+    return { yesBucket: b, noBucket };
+  }
+
+  return { yesBucket: undefined, noBucket: undefined };
 }
 
 // Fires once when the first METAR of `triggerHour` (city local time) arrives.
@@ -31,21 +57,7 @@ export function evaluatePeakAtHour(
   if (peakTriggered.value) return;
   if (metarLocalHour !== triggerHour) return;
 
-  const peakFloor = Math.floor(observedMaxTempC);
-  let yesBucket: BucketState | undefined;
-  let noBucket: BucketState | undefined;
-
-  for (let i = 0; i < buckets.length; i++) {
-    const b = buckets[i]!;
-    if (b.type !== "exact") continue;
-    if (b.tempC === peakFloor) {
-      yesBucket = b;
-      for (let j = i + 1; j < buckets.length; j++) {
-        if (buckets[j]!.type === "exact") { noBucket = buckets[j]; break; }
-      }
-      break;
-    }
-  }
+  const { yesBucket, noBucket } = findPeakBuckets(observedMaxTempC, buckets);
 
   if (!yesBucket) return;
   if (yesBucket.peakBought) return;
@@ -55,35 +67,20 @@ export function evaluatePeakAtHour(
   postPeakOrders(yesBucket, noBucket);
 }
 
-// Fires once when a confirmed temperature drop is detected between 12h–16h BRT.
+// Fires once when a confirmed temperature drop is detected between 12h–16h city-local time.
 // Buys YES on the peak bucket and NO on the bucket immediately above.
 // Expects buckets sorted ascending by tempC.
 export function evaluatePeakDrop(
   observedMaxTempC: number,
   buckets: BucketState[],
-  brtHour: number,
+  localHour: number,
   peakTriggered: { value: boolean },
   postPeakOrders: (yesBucket: BucketState, noBucket: BucketState | undefined) => void,
 ): void {
   if (peakTriggered.value) return;
-  if (brtHour < 12 || brtHour >= 16) return;
+  if (localHour < 12 || localHour >= 16) return;
 
-  const peakFloor = Math.floor(observedMaxTempC);
-  let yesBucket: BucketState | undefined;
-  let noBucket: BucketState | undefined;
-
-  for (let i = 0; i < buckets.length; i++) {
-    const b = buckets[i]!;
-    if (b.type !== "exact") continue;
-    if (b.tempC === peakFloor) {
-      yesBucket = b;
-      // next exact bucket above peak is the NO target
-      for (let j = i + 1; j < buckets.length; j++) {
-        if (buckets[j]!.type === "exact") { noBucket = buckets[j]; break; }
-      }
-      break;
-    }
-  }
+  const { yesBucket, noBucket } = findPeakBuckets(observedMaxTempC, buckets);
 
   if (!yesBucket) return;
   if (yesBucket.peakBought) return;

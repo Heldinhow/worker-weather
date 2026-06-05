@@ -2,6 +2,7 @@ import type { CityConfig } from "./config.ts";
 import { isHotWindow, formatBrt } from "./time.ts";
 
 export type CityDashboardState = {
+  previousObservedMax: number | undefined;
   observedMax: number;
   metarTimestampMs: number;
   detectedAtMs: number;
@@ -12,14 +13,14 @@ let registeredCities: CityConfig[] = [];
 let started = false;
 const useTTY = process.stdout.isTTY === true;
 
-const SEP = "─".repeat(66);
+const SEP = "─".repeat(102);
 const GREEN = "\x1b[32m";
 const RESET = "\x1b[0m";
 const SAVE = "\x1b7";
 const RESTORE = "\x1b8";
 
-export function updateCity(icao: string, observedMax: number, metarTimestampMs: number, detectedAtMs: number): void {
-  cityState.set(icao, { observedMax, metarTimestampMs, detectedAtMs });
+export function updateCity(icao: string, previousObservedMax: number | undefined, observedMax: number, metarTimestampMs: number, detectedAtMs: number): void {
+  cityState.set(icao, { previousObservedMax, observedMax, metarTimestampMs, detectedAtMs });
 }
 
 function blockHeight(): number {
@@ -30,18 +31,29 @@ function rows(): number {
   return process.stdout.rows ?? 24;
 }
 
+function cityName(slug: string): string {
+  return slug.split("-").map(part => part[0]!.toUpperCase() + part.slice(1)).join(" ");
+}
+
+function tempLabel(city: CityConfig, tempC: number | undefined): string {
+  if (tempC === undefined) return "—";
+  if (!city.icao.startsWith("K")) return `${tempC}°C`;
+  const tempF = Math.round(tempC * 9 / 5 + 32);
+  return `${tempC}°C/${tempF}°F`;
+}
+
 function renderBlock(): string {
   const now = new Date();
   const lines: string[] = [];
 
   lines.push(SEP);
-  lines.push(` ${"ICAO".padEnd(7)}${"ObsMax".padEnd(9)}${"METAR".padEnd(12)}${"Detected at".padEnd(15)}HW`);
+  lines.push(` ${"ICAO".padEnd(7)}${"City".padEnd(16)}${"PrevMax".padEnd(14)}${"ObsMax".padEnd(14)}${"METAR".padEnd(12)}${"Detected at".padEnd(15)}HW`);
   lines.push(SEP);
 
   for (const city of registeredCities) {
     const s = cityState.get(city.icao);
     const activeHour = city.targetHours.find(h =>
-      isHotWindow(now, h, city.hotWindowStart, city.hotWindowEnd)
+      isHotWindow(now, h, city.hotWindowStart, city.hotWindowEnd, city.timezone)
     );
 
     let hwStr: string;
@@ -53,12 +65,13 @@ function renderBlock(): string {
     }
 
     if (!s) {
-      lines.push(` ${city.icao.padEnd(7)}${"—".padEnd(9)}${"—".padEnd(12)}${"—".padEnd(15)}${hwStr}`);
+      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${"—".padEnd(14)}${"—".padEnd(14)}${"—".padEnd(12)}${"—".padEnd(15)}${hwStr}`);
     } else {
-      const obsMax = `${s.observedMax}°C`.padEnd(9);
+      const prevMax = tempLabel(city, s.previousObservedMax).padEnd(14);
+      const obsMax = tempLabel(city, s.observedMax).padEnd(14);
       const metar = (formatBrt(s.metarTimestampMs).slice(11, 16) + " BRT").padEnd(12);
       const detected = (formatBrt(s.detectedAtMs).slice(11, 19) + " BRT").padEnd(15);
-      lines.push(` ${city.icao.padEnd(7)}${obsMax}${metar}${detected}${hwStr}`);
+      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${prevMax}${obsMax}${metar}${detected}${hwStr}`);
     }
   }
 

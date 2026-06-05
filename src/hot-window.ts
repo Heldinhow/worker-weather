@@ -8,25 +8,16 @@ import { postOrder, postPeakOrders } from "./trader.ts";
 import { refreshBooks, startBookStream, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
-import { formatBrt, getLocalHour, isHotWindow, isHotWindowMs } from "./time.ts";
+import { formatBucket } from "./markets.ts";
+import { formatBrt, getLocalHour, getLocalSecondsSinceMidnight, isHotWindowMs } from "./time.ts";
 import { updateCity } from "./dashboard.ts";
 
 const DAY_S = 86_400;
 
-// Seconds since midnight BRT
-function brtSecondsSinceMidnight(ms: number): number {
-  const brtS = Math.floor(ms / 1000) - 3 * 3600;
-  const dayS = ((brtS % DAY_S) + DAY_S) % DAY_S;
-  return dayS;
-}
-
 // How many ms until the next hot window opens for this city?
 // Returns 0 if currently inside a hot window.
-function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
-  const ssm = brtSecondsSinceMidnight(nowMs);
-  const currentH = Math.floor(ssm / 3600);
-  const currentM = Math.floor((ssm % 3600) / 60);
-  const currentS = currentH * 3600 + currentM * 60 + (nowMs % 60000) / 1000;
+export function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
+  const currentS = getLocalSecondsSinceMidnight(nowMs, city.timezone);
 
   // Check each target hour to find the next window opening
   for (const target of city.targetHours) {
@@ -109,11 +100,13 @@ export function handleObs(
   tradeBuckets: BucketState[],
   clob: ClobClient,
   config: Config,
+  allowNoTrades = true,
 ): void {
   if (!obs) return;
 
-  const runNo = config.strategy === "no" || config.strategy === "both";
+  const runNo = allowNoTrades && (config.strategy === "no" || config.strategy === "both");
   const runPeak = config.strategy === "peak" || config.strategy === "both";
+  const runDailyPeakTrigger = runPeak && config.dailyPeakTrigger;
 
   if (obs.tempC > ref.value) {
     const prevValue = ref.value;
@@ -121,7 +114,7 @@ export function handleObs(
     const detectedAtMs = Date.now();
     const t0 = performance.now();
 
-    updateCity(icao, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
+    updateCity(icao, prevValue === -Infinity ? undefined : prevValue, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
 
     if (runNo) {
       evaluateBuckets(obs.tempC, tradeBuckets, b => {
@@ -133,10 +126,10 @@ export function handleObs(
     const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
     log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} hotPath=${elapsedUs}µs`);
 
-    if (runPeak) {
+    if (runDailyPeakTrigger) {
       const metarLocalHour = getLocalHour(obs.observedAtUtcMs, timezone);
-      evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, 15, peakTriggered, (yesBucket, noBucket) => {
-        log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
+      evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, config.peakTriggerHour, peakTriggered, (yesBucket, noBucket) => {
+        log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${formatBucket(yesBucket)} NO ${noBucket ? formatBucket(noBucket) : "none"}`);
         postPeakOrders(clob, yesBucket, noBucket, config);
       });
     }
@@ -146,15 +139,17 @@ export function handleObs(
     if (obs.tempC < ref.value) {
       const localHour = getLocalHour(Date.now(), timezone);
       evaluatePeakDrop(ref.value, tradeBuckets, localHour, peakTriggered, (yesBucket, noBucket) => {
-        log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} localHour=${localHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
+        log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} localHour=${localHour} → YES ${formatBucket(yesBucket)} NO ${noBucket ? formatBucket(noBucket) : "none"}`);
         postPeakOrders(clob, yesBucket, noBucket, config);
       });
     }
 
-    evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, 15, peakTriggered, (yesBucket, noBucket) => {
-      log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
-      postPeakOrders(clob, yesBucket, noBucket, config);
-    });
+    if (config.dailyPeakTrigger) {
+      evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, config.peakTriggerHour, peakTriggered, (yesBucket, noBucket) => {
+        log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${formatBucket(yesBucket)} NO ${noBucket ? formatBucket(noBucket) : "none"}`);
+        postPeakOrders(clob, yesBucket, noBucket, config);
+      });
+    }
   }
 }
 
@@ -178,7 +173,7 @@ export async function runHotWindowLoop(
     // immediately. The 300ms settle is only needed when we have time before
     // the window opens.
     const inWindowNow = city.targetHours.some(h =>
-      isHotWindowMs(Date.now(), h, city.hotWindowStart, city.hotWindowEnd)
+      isHotWindowMs(Date.now(), h, city.hotWindowStart, city.hotWindowEnd, city.timezone)
     );
     if (!inWindowNow) await Bun.sleep(300);
     // Warm-up HTTP connections in parallel with prepareOrders — both are
@@ -194,7 +189,7 @@ export async function runHotWindowLoop(
 
   while (Date.now() < deadline) {
     const nowMs = Date.now();
-    const activeHour = city.targetHours.find(h => isHotWindowMs(nowMs, h, city.hotWindowStart, city.hotWindowEnd));
+    const activeHour = city.targetHours.find(h => isHotWindowMs(nowMs, h, city.hotWindowStart, city.hotWindowEnd, city.timezone));
 
     if (activeHour !== undefined) {
       if (!config.dryRun) {
@@ -212,7 +207,7 @@ export async function runHotWindowLoop(
         ? setInterval(() => refreshBooks(clob, exactTokenIds).catch(() => undefined), 5_000)
         : undefined;
 
-      while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd)) {
+      while (isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd, city.timezone)) {
         await runHotObservationLoops(
           [
             {
@@ -224,9 +219,9 @@ export async function runHotWindowLoop(
               fetch: signal => fetchAviationWeather(city.icao, signal),
             },
           ],
-          () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
+          () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd, city.timezone),
           obs => getLocalHour(obs.observedAtUtcMs, city.timezone) !== prevHour,
-          (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
+          (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config, true),
         );
       }
 
@@ -235,7 +230,7 @@ export async function runHotWindowLoop(
       log(city.icao, `hot window closed targetHour=${activeHour}`);
       // Calculate exact ms remaining in this hot window and sleep once
       const closeS = activeHour * 3600 + city.hotWindowEnd * 60;
-      const nowS = brtSecondsSinceMidnight(Date.now());
+      const nowS = getLocalSecondsSinceMidnight(Date.now(), city.timezone);
       const remainingMs = Math.max(0, (closeS - nowS) * 1000 + 100); // +100ms buffer
       if (remainingMs > 0) await Bun.sleep(remainingMs);
     } else {
@@ -244,7 +239,7 @@ export async function runHotWindowLoop(
           { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
           { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
         ],
-        (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
+        (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config, false),
       );
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
 
