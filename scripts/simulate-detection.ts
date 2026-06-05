@@ -10,6 +10,7 @@ import { initClobClient } from "../src/clob.ts";
 import { handleObs } from "../src/hot-window.ts";
 import type { BucketState } from "../src/types.ts";
 import { formatBucket, observedWholeTempInUnit, parseGammaMarket, sortBuckets, type GammaEvent } from "../src/markets.ts";
+import { initTradeLedger, markExecutedBuckets } from "../src/trade-ledger.ts";
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
@@ -30,18 +31,24 @@ function buildSlug(citySlug: string, date?: string): string {
   return `highest-temperature-in-${citySlug}-on-${month}-${day}-${year}`;
 }
 
-async function fetchBuckets(citySlug: string, date?: string): Promise<BucketState[]> {
-  const slug = buildSlug(citySlug, date);
+async function fetchBuckets(city: { slug: string; icao: string }, date?: string): Promise<BucketState[]> {
+  const slug = buildSlug(city.slug, date);
   const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`);
   const events = await resp.json() as GammaEvent[];
   const event = events[0]!;
 
   const buckets = event.markets.flatMap(m => {
     const bucket = parseGammaMarket(event, m);
+    if (bucket) {
+      bucket.icao = city.icao;
+      bucket.citySlug = city.slug;
+      bucket.eventSlug = slug;
+    }
     return bucket ? [bucket] : [];
   });
 
   sortBuckets(buckets);
+  markExecutedBuckets(buckets);
   return buckets;
 }
 
@@ -67,6 +74,7 @@ function parseArgs(): { icao: string; obs: number; initialMax: number; date?: st
 
 const { icao, obs, initialMax, date } = parseArgs();
 const config = loadConfig();
+initTradeLedger(config.tradeLedgerPath);
 const city = config.cities.find(c => c.icao === icao);
 
 if (!city) {
@@ -75,7 +83,7 @@ if (!city) {
 }
 
 console.log(`[sim] fetching buckets for ${city.slug} (${icao}) date=${date ?? "today"}...`);
-const buckets = await fetchBuckets(city.slug, date);
+const buckets = await fetchBuckets(city, date);
 const exactBuckets = buckets.filter(b => b.type === "exact");
 console.log(`[sim] ${buckets.length} buckets loaded. exact: ${exactBuckets.map(formatBucket).join(", ")}`);
 

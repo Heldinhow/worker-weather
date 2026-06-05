@@ -1,5 +1,6 @@
 import type { CityConfig } from "./config.ts";
 import { isHotWindow, formatBrt } from "./time.ts";
+import { getExecutedTrades, type TradeRecord } from "./trade-ledger.ts";
 
 export type CityDashboardState = {
   previousObservedMax: number | undefined;
@@ -13,7 +14,7 @@ let registeredCities: CityConfig[] = [];
 let started = false;
 const useTTY = process.stdout.isTTY === true;
 
-const SEP = "─".repeat(102);
+const SEP = "─".repeat(124);
 const GREEN = "\x1b[32m";
 const RESET = "\x1b[0m";
 const SAVE = "\x1b7";
@@ -42,12 +43,25 @@ function tempLabel(city: CityConfig, tempC: number | undefined): string {
   return `${tempC}°C/${tempF}°F`;
 }
 
+function tradeStrategyLabel(strategy: TradeRecord["strategy"]): string {
+  if (strategy === "contested-no") return "CNO";
+  if (strategy === "peak-yes") return "PYES";
+  return "PNO";
+}
+
+function tradeLabel(icao: string): string {
+  const trades = getExecutedTrades().filter(trade => trade.icao === icao);
+  if (trades.length === 0) return "—";
+  const last = trades[trades.length - 1]!;
+  return `${trades.length} ${tradeStrategyLabel(last.strategy)} ${last.bucket}`;
+}
+
 function renderBlock(): string {
   const now = new Date();
   const lines: string[] = [];
 
   lines.push(SEP);
-  lines.push(` ${"ICAO".padEnd(7)}${"City".padEnd(16)}${"PrevMax".padEnd(14)}${"ObsMax".padEnd(14)}${"METAR".padEnd(12)}${"Detected at".padEnd(15)}HW`);
+  lines.push(` ${"ICAO".padEnd(7)}${"City".padEnd(16)}${"PrevMax".padEnd(14)}${"ObsMax".padEnd(14)}${"METAR".padEnd(12)}${"Detected at".padEnd(15)}${"HW".padEnd(13)}Trades`);
   lines.push(SEP);
 
   for (const city of registeredCities) {
@@ -56,22 +70,22 @@ function renderBlock(): string {
       isHotWindow(now, h, city.hotWindowStart, city.hotWindowEnd, city.timezone)
     );
 
-    let hwStr: string;
+    let hwCell: string;
     if (activeHour !== undefined) {
       const label = `YES (${activeHour}h)`;
-      hwStr = useTTY ? `${GREEN}${label}${RESET}` : label;
+      hwCell = useTTY ? `${GREEN}${label.padEnd(13)}${RESET}` : label.padEnd(13);
     } else {
-      hwStr = "no";
+      hwCell = "no".padEnd(13);
     }
 
     if (!s) {
-      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${"—".padEnd(14)}${"—".padEnd(14)}${"—".padEnd(12)}${"—".padEnd(15)}${hwStr}`);
+      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${"—".padEnd(14)}${"—".padEnd(14)}${"—".padEnd(12)}${"—".padEnd(15)}${hwCell}${tradeLabel(city.icao)}`);
     } else {
       const prevMax = tempLabel(city, s.previousObservedMax).padEnd(14);
       const obsMax = tempLabel(city, s.observedMax).padEnd(14);
       const metar = (formatBrt(s.metarTimestampMs).slice(11, 16) + " BRT").padEnd(12);
       const detected = (formatBrt(s.detectedAtMs).slice(11, 19) + " BRT").padEnd(15);
-      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${prevMax}${obsMax}${metar}${detected}${hwStr}`);
+      lines.push(` ${city.icao.padEnd(7)}${cityName(city.slug).padEnd(16)}${prevMax}${obsMax}${metar}${detected}${hwCell}${tradeLabel(city.icao)}`);
     }
   }
 

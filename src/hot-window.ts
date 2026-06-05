@@ -89,6 +89,11 @@ export async function runHotObservationLoops(
   }));
 }
 
+function isMetarStale(obs: ObservationResult, maxAgeMs: number): boolean {
+  const ageMs = Date.now() - obs.observedAtUtcMs;
+  return ageMs > maxAgeMs;
+}
+
 export function handleObs(
   obs: ObservationResult | null,
   source: string,
@@ -104,8 +109,10 @@ export function handleObs(
 ): void {
   if (!obs) return;
 
-  const runNo = allowNoTrades && (config.strategy === "no" || config.strategy === "both");
-  const runPeak = config.strategy === "peak" || config.strategy === "both";
+  const stale = isMetarStale(obs, config.metarMaxAgeMs);
+
+  const runNo = !stale && allowNoTrades && (config.strategy === "no" || config.strategy === "both");
+  const runPeak = !stale && (config.strategy === "peak" || config.strategy === "both");
   const runDailyPeakTrigger = runPeak && config.dailyPeakTrigger;
 
   if (obs.tempC > ref.value) {
@@ -115,6 +122,10 @@ export function handleObs(
     const t0 = performance.now();
 
     updateCity(icao, prevValue === -Infinity ? undefined : prevValue, obs.tempC, obs.observedAtUtcMs, detectedAtMs);
+
+    if (stale) {
+      log(source, `observedMax ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} STALE ageMs=${Date.now() - obs.observedAtUtcMs} — skipping trades`);
+    }
 
     if (runNo) {
       evaluateBuckets(obs.tempC, tradeBuckets, b => {

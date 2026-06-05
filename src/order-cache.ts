@@ -49,7 +49,7 @@ export function limitShares(config: Config): number {
   return Math.max(config.minShares, Math.floor(shares / LIMIT_SHARE_STEP) * LIMIT_SHARE_STEP);
 }
 
-function peakShares(price: number, config: Config): number {
+export function peakShares(price: number, config: Config): number {
   const a = Math.round(price * 100);
   const step = 1 / gcd(a, 100);
   const shares = config.maxStake / price;

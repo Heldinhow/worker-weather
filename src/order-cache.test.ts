@@ -15,7 +15,9 @@ const config: Config = {
   signatureType: undefined,
   strategy: "no" as const,
   dailyPeakTrigger: true,
-  peakTriggerHour: 16,
+  peakTriggerHour: 17,
+  tradeLedgerPath: ".state/test-trades.jsonl",
+  metarMaxAgeMs: 900_000,
 };
 
 const exactBucket: BucketState = {

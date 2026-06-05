@@ -57,11 +57,15 @@ UTC−3, used for logs, date resolution, and daily reset. Hot Window detection u
 _Avoid_: local time, Brazil time, São Paulo time
 
 **Dashboard**:
-A live terminal display refreshed every second that shows per-city bot state: previous ObservedMax, current ObservedMax, the METAR timestamp of the observation that set it, the wall-clock time the bot first detected it, and whether the city is currently in a Hot Window. Replaces routine METAR fetch logs — only detection events (new ObservedMax), trades, and errors produce scroll output and are written to the log file.
+A live terminal display refreshed every second that shows per-city bot state: previous ObservedMax, current ObservedMax, the METAR timestamp of the observation that set it, the wall-clock time the bot first detected it, whether the city is currently in a Hot Window, and the count/latest matched trade from the local Trade Ledger. Replaces routine METAR fetch logs — only detection events (new ObservedMax), trades, and errors produce scroll output and are written to the log file.
 _Avoid_: status panel, monitor, TUI
 
+**Trade Ledger**:
+A local JSONL file of CLOB results with `status="matched"`, keyed in memory by `tokenId`. Loaded at boot before buckets are evaluated so already-filled YES/NO tokens are marked as bought and are not posted again after a restart. The default path is `.state/trades.jsonl` and can be overridden with `TRADE_LEDGER_PATH`.
+_Avoid_: trade log, order history, position database
+
 **Daily Peak Trigger**:
-A time-triggered strategy that fires once at a configurable city-local hour (default 16h) when `peakTriggered` is still false. On the first METAR whose `observedAt` hour equals the trigger hour, buys YES on the ObservedMax bucket and NO on the bucket immediately above — treating the day's ObservedMax as the confirmed daily peak regardless of whether a temperature drop was detected. Complements Peak Detection: whichever fires first wins via the shared `peakTriggered` flag. Active by default when `strategy` is `"peak"` or `"both"`; can be disabled with `DAILY_PEAK_TRIGGER=false`.
+A time-triggered strategy that fires once at a configurable city-local hour (default 17h) when `peakTriggered` is still false. On the first METAR whose `observedAt` hour equals the trigger hour, buys YES on the ObservedMax bucket and NO on the bucket immediately above — treating the day's ObservedMax as the confirmed daily peak regardless of whether a temperature drop was detected. Complements Peak Detection: whichever fires first wins via the shared `peakTriggered` flag. Active by default when `strategy` is `"peak"` or `"both"`; can be disabled with `DAILY_PEAK_TRIGGER=false`.
 _Avoid_: hourly peak check, peak safety net
 
 **DetectedAt**:

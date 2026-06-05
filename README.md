@@ -114,6 +114,8 @@ As chamadas a `postOrder` para múltiplos buckets são disparadas em paralelo (f
 
 O bot só posta ordens **Fill-and-Kill**. Se houver ordem pré-assinada para o bucket, ela é usada no hot path para evitar assinatura e chamadas de metadata no momento da disputa. Se o book cache estiver frio, o bot dispara em paralelo um FAK limite a 0.99 e um market FAK com preço limite 0.99. Se o CLOB responder que não havia ordens para preencher, o bucket é marcado como `attempted`.
 
+Resultados `matched` são gravados no trade ledger local. No próximo boot, qualquer bucket cujo `tokenId` já esteja no ledger é marcado como comprado e não recebe nova ordem. O Dashboard mostra, por cidade, a quantidade de trades executados e o último bucket/estratégia registrado.
+
 ---
 
 ## Configuração
@@ -136,7 +138,9 @@ PROD=false           # true: aplica guarda de custo mínimo (≥ $1.00 por ordem
 DRY_RUN=false        # true: loga tudo mas nunca chama o CLOB
 STRATEGY=no          # no | peak | both  (ver secção Estratégias)
 DAILY_PEAK_TRIGGER=true   # false desativa o gatilho horário sem queda confirmada
-PEAK_TRIGGER_HOUR=16      # hora local usada pelo Daily Peak Trigger
+PEAK_TRIGGER_HOUR=17      # hora local usada pelo Daily Peak Trigger
+TRADE_LEDGER_PATH=.state/trades.jsonl  # fills matched persistidos entre restarts
+METAR_MAX_AGE_MS=900000  # máximo de 15min de idade do METAR para permitir trade
 
 TARGET_HOURS=10,11,12,13,14,15,16        # horas locais da cidade com hot window ativo
 ```

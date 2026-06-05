@@ -7,6 +7,7 @@ import { log, registerCityColor } from "./logger.ts";
 import { startDashboard } from "./dashboard.ts";
 import { todaySlug } from "./time.ts";
 import { parseGammaMarket, sortBuckets, type GammaEvent } from "./markets.ts";
+import { initTradeLedger, markExecutedBuckets } from "./trade-ledger.ts";
 
 function getMsUntilMidnightBrt(): number {
   const now = Date.now();
@@ -21,7 +22,10 @@ const slugCache = new Map<string, { slug: string; buckets: BucketState[] }>();
 async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; buckets: BucketState[] }> {
   const slug = todaySlug(city.slug);
   const cached = slugCache.get(slug);
-  if (cached) return cached;
+  if (cached) {
+    markExecutedBuckets(cached.buckets);
+    return cached;
+  }
 
   const resp = await fetch(`https://gamma-api.polymarket.com/events?slug=${slug}`, { keepalive: true });
   const events = await resp.json() as GammaEvent[];
@@ -38,6 +42,9 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   for (const market of event.markets) {
     const bucket = parseGammaMarket(event, market);
     if (bucket) {
+      bucket.icao = city.icao;
+      bucket.citySlug = city.slug;
+      bucket.eventSlug = slug;
       buckets.push(bucket);
     } else {
       log("warn", `Skipping bucket: could not parse temperature slug=${slug} question="${market.question}"`);
@@ -45,6 +52,7 @@ async function resolveSlugAndMarkets(city: CityConfig): Promise<{ slug: string; 
   }
 
   sortBuckets(buckets);
+  markExecutedBuckets(buckets);
 
   const result = { slug, buckets };
   slugCache.set(slug, result);
@@ -67,6 +75,7 @@ async function runCity(city: CityConfig, config: Config, clob: ClobClient, initi
 }
 
 const config = loadConfig();
+initTradeLedger(config.tradeLedgerPath);
 config.cities.forEach((city, i) => registerCityColor(city.icao, i));
 startDashboard(config.cities);
 

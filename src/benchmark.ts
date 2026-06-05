@@ -20,6 +20,11 @@ async function resolveMarkets(city: CityConfig): Promise<BucketState[]> {
 
   const buckets = event.markets.flatMap(m => {
     const bucket = parseGammaMarket(event, m);
+    if (bucket) {
+      bucket.icao = city.icao;
+      bucket.citySlug = city.slug;
+      bucket.eventSlug = slug;
+    }
     return bucket ? [bucket] : [];
   });
 

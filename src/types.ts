@@ -8,6 +8,9 @@ export type BucketState = {
   upperTemp: number;
   unit: TemperatureUnit;
   label: string;
+  icao?: string;
+  citySlug?: string;
+  eventSlug?: string;
   type: "exact" | "below" | "above";
   noTokenId: string;
   yesTokenId: string;

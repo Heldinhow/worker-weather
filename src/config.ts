@@ -22,6 +22,8 @@ export type Config = {
   strategy: "no" | "peak" | "both";
   dailyPeakTrigger: boolean;
   peakTriggerHour: number;
+  tradeLedgerPath: string;
+  metarMaxAgeMs: number;
 };
 
 export function loadConfig(): Config {
@@ -41,6 +43,8 @@ export function loadConfig(): Config {
     signatureType: process.env.POLY_SIGNATURE_TYPE || undefined,
     strategy: (process.env.STRATEGY ?? "no") as "no" | "peak" | "both",
     dailyPeakTrigger: (process.env.DAILY_PEAK_TRIGGER ?? "true") === "true",
-    peakTriggerHour: Number(process.env.PEAK_TRIGGER_HOUR ?? "16"),
+    peakTriggerHour: Number(process.env.PEAK_TRIGGER_HOUR ?? "17"),
+    tradeLedgerPath: process.env.TRADE_LEDGER_PATH ?? ".state/trades.jsonl",
+    metarMaxAgeMs: Number(process.env.METAR_MAX_AGE_MS ?? "900000"),
   };
 }

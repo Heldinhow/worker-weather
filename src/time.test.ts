@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import cities from "../cities.json";
 import { isHotWindowMs } from "./time.ts";
 
 describe("isHotWindowMs", () => {
@@ -16,5 +17,14 @@ describe("isHotWindowMs", () => {
 
     expect(isHotWindowMs(saoPauloTenFiftySix, 11, 55, 0, "America/Sao_Paulo")).toBe(true);
     expect(isHotWindowMs(saoPauloEleven, 11, 55, 0, "America/Sao_Paulo")).toBe(true);
+  });
+
+  test("Buenos Aires window does not open at the top of the previous hour", () => {
+    const buenosAires = cities.find(city => city.slug === "buenos-aires")!;
+    const buenosAiresTenOhNine = Date.UTC(2026, 5, 5, 13, 9, 56);
+    const buenosAiresTenFiftySix = Date.UTC(2026, 5, 5, 13, 56);
+
+    expect(isHotWindowMs(buenosAiresTenOhNine, 11, buenosAires.hotWindowStart, buenosAires.hotWindowEnd, buenosAires.timezone)).toBe(false);
+    expect(isHotWindowMs(buenosAiresTenFiftySix, 11, buenosAires.hotWindowStart, buenosAires.hotWindowEnd, buenosAires.timezone)).toBe(true);
   });
 });

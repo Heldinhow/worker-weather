@@ -17,7 +17,9 @@ const config: Config = {
   signatureType: undefined,
   strategy: "no",
   dailyPeakTrigger: true,
-  peakTriggerHour: 16,
+  peakTriggerHour: 17,
+  tradeLedgerPath: ".state/test-trades.jsonl",
+  metarMaxAgeMs: 900_000,
 };
 
 function deferred<T>(): {
@@ -90,7 +92,7 @@ describe("handleObs", () => {
     expect(bucket.pendingBuy).toBe(false);
   });
 
-  test("does not fire Daily Peak Trigger before the configured 16h hour", async () => {
+  test("does not fire Daily Peak Trigger before the configured 17h hour", async () => {
     const buckets = [
       makeBucket("daily-trigger-off-22", 22),
       makeBucket("daily-trigger-off-23", 23),
@@ -111,7 +113,7 @@ describe("handleObs", () => {
       },
     } as unknown as ClobClient;
 
-    const peakConfig = { ...config, strategy: "peak" as const };
+    const peakConfig = { ...config, strategy: "peak" as const, metarMaxAgeMs: Number.MAX_SAFE_INTEGER };
     await prepareOrders(clob, buckets, peakConfig);
 
     const peakTriggered = { value: false };
@@ -134,7 +136,7 @@ describe("handleObs", () => {
     expect(peakTriggered.value).toBe(false);
   });
 
-  test("fires Daily Peak Trigger at the configured 16h hour", async () => {
+  test("fires Daily Peak Trigger at the configured 17h hour", async () => {
     const buckets = [
       makeBucket("daily-trigger-on-22", 22),
       makeBucket("daily-trigger-on-23", 23),
@@ -155,12 +157,12 @@ describe("handleObs", () => {
       },
     } as unknown as ClobClient;
 
-    const peakConfig = { ...config, strategy: "peak" as const };
+    const peakConfig = { ...config, strategy: "peak" as const, metarMaxAgeMs: Number.MAX_SAFE_INTEGER };
     await prepareOrders(clob, buckets, peakConfig);
 
     const peakTriggered = { value: false };
     handleObs(
-      { tempC: 22, observedAtUtcMs: Date.UTC(2026, 5, 5, 13, 0) },
+      { tempC: 22, observedAtUtcMs: Date.UTC(2026, 5, 5, 14, 0) },
       "aw/LTFM",
       "LTFM",
       "Europe/Istanbul",
@@ -176,6 +178,48 @@ describe("handleObs", () => {
 
     expect(postOrderCalls).toBe(2);
     expect(peakTriggered.value).toBe(true);
+  });
+
+  test("skips trades when METAR is stale", async () => {
+    const bucket = makeBucket("stale-no-trade-12", 12);
+    let postOrderCalls = 0;
+
+    const clob = {
+      async getClobMarketInfo() {},
+      async createOrder(userOrder: { tokenID: string }) {
+        return { kind: "limit", tokenID: userOrder.tokenID };
+      },
+      async createMarketOrder(userOrder: { tokenID: string }) {
+        return { kind: "market", tokenID: userOrder.tokenID };
+      },
+      async postOrder() {
+        postOrderCalls += 1;
+        return { status: "matched" };
+      },
+    } as unknown as ClobClient;
+
+    const staleConfig = { ...config, metarMaxAgeMs: 60_000 };
+    await prepareOrders(clob, [bucket], staleConfig);
+
+    const observedMaxRef = { value: -Infinity };
+    handleObs(
+      { tempC: 13, observedAtUtcMs: Date.now() - 120_000 },
+      "stale/SBGR",
+      "SBGR",
+      "America/Sao_Paulo",
+      observedMaxRef,
+      { value: false },
+      new Map([[bucket.noTokenId, bucket]]),
+      [bucket],
+      clob,
+      staleConfig,
+      true,
+    );
+    await Bun.sleep(0);
+
+    expect(observedMaxRef.value).toBe(13);
+    expect(postOrderCalls).toBe(0);
+    expect(bucket.pendingBuy).toBe(false);
   });
 });
 
