@@ -60,6 +60,10 @@ _Avoid_: local time, Brazil time, São Paulo time
 A live terminal display refreshed every second that shows per-city bot state: ObservedMax, the METAR timestamp of the observation that set it, the wall-clock time the bot first detected it, and whether the city is currently in a Hot Window. Replaces routine METAR fetch logs — only detection events (new ObservedMax), trades, and errors produce scroll output and are written to the log file.
 _Avoid_: status panel, monitor, TUI
 
+**Daily Peak Trigger**:
+A time-triggered strategy that fires once at a configurable city-local hour (default 15h) when `peakTriggered` is still false. On the first METAR whose `observedAt` hour equals the trigger hour, buys YES on the ObservedMax bucket and NO on the bucket immediately above — treating the day's ObservedMax as the confirmed daily peak regardless of whether a temperature drop was detected. Complements Peak Detection: whichever fires first wins via the shared `peakTriggered` flag. Active when `strategy` is `"peak"` or `"both"`.
+_Avoid_: hourly peak check, peak safety net
+
 **DetectedAt**:
 The wall-clock timestamp recorded by the bot the moment it first processes an observation that raises the ObservedMax for a city. Distinct from the METAR timestamp (`observedAtUtcMs`), which is when the station measured the temperature. DetectedAt is relevant for latency analysis; the METAR timestamp is relevant for market resolution.
 _Avoid_: processed at, received at

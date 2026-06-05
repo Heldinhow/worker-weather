@@ -3,12 +3,12 @@ import type { BucketState, ObservationResult } from "./types.ts";
 import type { CityConfig, Config } from "./config.ts";
 import { fetchNoaa } from "./fetchers/noaa.ts";
 import { fetchAviationWeather } from "./fetchers/aviation-weather.ts";
-import { evaluateBuckets, evaluatePeakDrop } from "./evaluator.ts";
+import { evaluateBuckets, evaluatePeakDrop, evaluatePeakAtHour } from "./evaluator.ts";
 import { postOrder, postPeakOrders } from "./trader.ts";
 import { refreshBooks, startBookStream, isBookStreamConnected, forceReconnectBookStream } from "./book-cache.ts";
 import { prepareOrders } from "./order-cache.ts";
 import { log } from "./logger.ts";
-import { formatBrt, isHotWindow, isHotWindowMs } from "./time.ts";
+import { formatBrt, getLocalHour, isHotWindow, isHotWindowMs } from "./time.ts";
 import { updateCity } from "./dashboard.ts";
 
 const DAY_S = 86_400;
@@ -48,11 +48,6 @@ function msUntilNextHotWindow(nowMs: number, city: CityConfig): number {
   const openS = prevH * 3600 + city.hotWindowStart * 60;
   const tomorrowOpenS = openS + DAY_S;
   return (tomorrowOpenS - currentS) * 1000;
-}
-
-function getMetarBrtHour(obs: ObservationResult): number {
-  const brtS = Math.floor(obs.observedAtUtcMs / 1000) - 3 * 3600;
-  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
 export function processObservationFetches(
@@ -107,6 +102,7 @@ export function handleObs(
   obs: ObservationResult | null,
   source: string,
   icao: string,
+  timezone: string,
   ref: { value: number },
   peakTriggered: { value: boolean },
   bucketMap: Map<string, BucketState>,
@@ -136,18 +132,30 @@ export function handleObs(
     const elapsedUs = Math.round((performance.now() - t0) * 1000);
     const prev = prevValue === -Infinity ? "-∞" : String(prevValue);
     log(source, `observedMax ${prev} → ${obs.tempC} metar=${formatBrt(obs.observedAtUtcMs)} hotPath=${elapsedUs}µs`);
-  } else if (runPeak && obs.tempC < ref.value && ref.value !== -Infinity) {
-    const brtHour = getBrtHour(Date.now());
-    evaluatePeakDrop(ref.value, tradeBuckets, brtHour, peakTriggered, (yesBucket, noBucket) => {
-      log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} brtHour=${brtHour} → buying YES ${yesBucket.tempC}°C + NO ${noBucket?.tempC ?? "none"}°C`);
+
+    if (runPeak) {
+      const metarLocalHour = getLocalHour(obs.observedAtUtcMs, timezone);
+      evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, 15, peakTriggered, (yesBucket, noBucket) => {
+        log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
+        postPeakOrders(clob, yesBucket, noBucket, config);
+      });
+    }
+  } else if (runPeak && ref.value !== -Infinity) {
+    const metarLocalHour = getLocalHour(obs.observedAtUtcMs, timezone);
+
+    if (obs.tempC < ref.value) {
+      const localHour = getLocalHour(Date.now(), timezone);
+      evaluatePeakDrop(ref.value, tradeBuckets, localHour, peakTriggered, (yesBucket, noBucket) => {
+        log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} localHour=${localHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
+        postPeakOrders(clob, yesBucket, noBucket, config);
+      });
+    }
+
+    evaluatePeakAtHour(ref.value, tradeBuckets, metarLocalHour, 15, peakTriggered, (yesBucket, noBucket) => {
+      log(source, `peak-at-hour observedMax=${ref.value} metarHour=${metarLocalHour} → YES ${yesBucket.tempC}°C NO ${noBucket?.tempC ?? "none"}°C`);
       postPeakOrders(clob, yesBucket, noBucket, config);
     });
   }
-}
-
-function getBrtHour(nowMs: number): number {
-  const brtS = Math.floor(nowMs / 1000) - 3 * 3600;
-  return Math.floor(((brtS % DAY_S) + DAY_S) % DAY_S / 3600);
 }
 
 export async function runHotWindowLoop(
@@ -217,8 +225,8 @@ export async function runHotWindowLoop(
             },
           ],
           () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd),
-          obs => getMetarBrtHour(obs) !== prevHour,
-          (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
+          obs => getLocalHour(obs.observedAtUtcMs, city.timezone) !== prevHour,
+          (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
         );
       }
 
@@ -236,7 +244,7 @@ export async function runHotWindowLoop(
           { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
           { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
         ],
-        (obs, source) => handleObs(obs, source, city.icao, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
+        (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config),
       );
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
 

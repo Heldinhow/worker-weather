@@ -119,6 +119,7 @@ handleObs(
   { tempC: obs, observedAtUtcMs: Date.now() },
   `sim/${icao}`,
   icao,
+  city.timezone,
   observedMaxRef,
   { value: false },
   bucketMap,

@@ -98,7 +98,7 @@ async function runBenchmark(): Promise<void> {
 
   for (let i = 0; i < N; i++) {
     const observedMaxRef = { value: -Infinity };
-    handleObs({ tempC: 20, observedAtUtcMs: Date.now() }, "benchmark", city.icao, observedMaxRef, { value: false }, new Map(), buckets, clob, config);
+    handleObs({ tempC: 20, observedAtUtcMs: Date.now() }, "benchmark", city.icao, city.timezone, observedMaxRef, { value: false }, new Map(), buckets, clob, config);
 
     for (const b of buckets) {
       b.bought = false;

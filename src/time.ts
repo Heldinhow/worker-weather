@@ -1,5 +1,14 @@
 const DAY_S = 86_400;
 
+export function getLocalHour(utcMs: number, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hourCycle: "h23",
+    timeZone: timezone,
+  }).formatToParts(new Date(utcMs));
+  return Number(parts.find(p => p.type === "hour")!.value);
+}
+
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december",

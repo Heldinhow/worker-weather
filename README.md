@@ -30,13 +30,80 @@ O bot opera em dois modos de polling:
 - **Book stream**: o cache de asks recebe snapshots e updates pelo websocket de market data do Polymarket, com refresh REST como fallback.
 - **Prewarm**: antes da disputa, o bot aquece metadata do CLOB e pré-assina ordens FAK de limite e market por bucket exact.
 
-### Fluxo de uma compra
+### Estratégias
+
+O bot suporta três estratégias, controladas pela variável `STRATEGY`. Cada uma opera sobre os mesmos dados de METAR e pode ser combinada com as demais.
+
+---
+
+#### `no` — Contested NO (padrão)
+
+Compra NO nos buckets que se tornaram meteorologicamente impossíveis para o dia.
+
+**Condição:** `floor(ObservedMax) > bucket.tempC`
+
+Quando o ObservedMax sobe, todos os buckets abaixo do novo piso são avaliados. Para cada bucket ainda não comprado, dispara um FAK imediatamente. Não tem estado de dia: reavalía a cada nova observação que elevar o ObservedMax.
 
 ```
-fetchNoaa / fetchAviationWeather
-  └─ handleObs           — atualiza ObservedMax se tempC > atual
-       └─ evaluateBuckets — para cada bucket exact onde floor(ObservedMax) > tempC
-            └─ postOrder  — FAK pré-assinado (0.99) ou baseado no book cache
+METAR (tempC > ObservedMax)
+  └─ evaluateBuckets
+       └─ postOrder (FAK NO, limite 0.99) — paralelo por bucket
+```
+
+---
+
+#### `peak` — Peak Detection + Daily Peak Trigger
+
+Duas sub-estratégias complementares que compram YES no bucket do pico e NO no bucket imediatamente acima. Partilham o flag `peakTriggered`: quem disparar primeiro vence, a outra torna-se no-op.
+
+**Peak Detection** (`evaluatePeakDrop`)
+
+Dispara quando uma observação de temperatura mais baixa confirma que o pico passou. Ativo entre 12h–16h (hora local da cidade).
+
+- Condição: `obs.tempC < ObservedMax` enquanto `localHour ∈ [12, 16)`
+- Compra: YES@`floor(ObservedMax)` a 0.95 + NO@`floor(ObservedMax)+1` a 0.97
+
+```
+METAR (tempC < ObservedMax, 12h–16h local)
+  └─ evaluatePeakDrop
+       ├─ postPeakYes (FAK YES, limite 0.95)
+       └─ postPeakNo  (FAK NO,  limite 0.97)
+```
+
+**Daily Peak Trigger** (`evaluatePeakAtHour`)
+
+Safety net baseado em horário: o pico de temperatura máxima ocorre normalmente até às 15h. Se o Peak Detection ainda não disparou, o primeiro METAR da hora de disparo (15h local por defeito) encerra a posição com o ObservedMax do momento — mesmo sem ter observado queda de temperatura.
+
+- Condição: `metarLocalHour === 15` e `peakTriggered === false`
+- Se a temperatura subiu no METAR das 15h, o ObservedMax é actualizado antes do disparo.
+- Compra: YES@`floor(ObservedMax)` a 0.95 + NO@`floor(ObservedMax)+1` a 0.97
+
+```
+METAR (observedAt hora local === 15)
+  └─ evaluatePeakAtHour
+       ├─ postPeakYes (FAK YES, limite 0.95)
+       └─ postPeakNo  (FAK NO,  limite 0.97)
+```
+
+---
+
+#### `both` — NO + Peak
+
+Corre as estratégias `no` e `peak` em simultâneo sobre cada observação. Útil em dias com variação de temperatura significativa: o Contested NO captura os buckets abaixo do pico real enquanto Peak Detection/Daily Peak Trigger fecham a posição no pico.
+
+---
+
+### Fluxo de uma compra (estratégia `both`)
+
+```
+METAR
+  └─ handleObs
+       ├─ [tempC > ObservedMax] → atualiza ObservedMax
+       │    ├─ evaluateBuckets   → postOrder (NO, 0.99) por bucket contestado
+       │    └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = 15
+       └─ [tempC ≤ ObservedMax, ObservedMax ≠ -∞]
+            ├─ evaluatePeakDrop   → postPeakYes + postPeakNo se queda 12h–16h
+            └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = 15
 ```
 
 As chamadas a `postOrder` para múltiplos buckets são disparadas em paralelo (fire-and-forget no event loop).
@@ -65,6 +132,7 @@ MAX_STAKE=4          # USDC máximo por ordem
 MIN_SHARES=5         # mínimo de shares para ordem FAK pré-assinada
 PROD=false           # true: aplica guarda de custo mínimo (≥ $1.00 por ordem)
 DRY_RUN=false        # true: loga tudo mas nunca chama o CLOB
+STRATEGY=no          # no | peak | both  (ver secção Estratégias)
 
 TARGET_HOURS=10,11,12,13,14,15,16        # horas BRT com hot window ativo
 ```
@@ -136,7 +204,7 @@ src/
   index.ts          — bootstrap: carrega config, inicia CLOB, roda cidades
   clob.ts           — inicialização do ClobClient (reutilizado pelo script de simulação)
   hot-window.ts     — loop principal: warm poll + hot window + handleObs
-  evaluator.ts      — lógica pura de detecção de Contested NO
+  evaluator.ts      — lógica pura das três estratégias (evaluateBuckets, evaluatePeakDrop, evaluatePeakAtHour)
   trader.ts         — postOrder: book cache → FAK pré-assinado
   order-cache.ts    — prewarm de metadata CLOB e ordens assinadas
   book-cache.ts     — cache de order book via REST + websocket
