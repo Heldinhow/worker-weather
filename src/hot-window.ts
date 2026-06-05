@@ -148,9 +148,8 @@ export function handleObs(
     const metarLocalHour = getLocalHour(obs.observedAtUtcMs, timezone);
 
     if (obs.tempC < ref.value) {
-      const localHour = getLocalHour(Date.now(), timezone);
-      evaluatePeakDrop(ref.value, tradeBuckets, localHour, peakTriggered, (yesBucket, noBucket) => {
-        log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} localHour=${localHour} → YES ${formatBucket(yesBucket)} NO ${noBucket ? formatBucket(noBucket) : "none"}`);
+      evaluatePeakDrop(ref.value, tradeBuckets, metarLocalHour, peakTriggered, (yesBucket, noBucket) => {
+        log(source, `peak drop detected observedMax=${ref.value} current=${obs.tempC} metarHour=${metarLocalHour} → YES ${formatBucket(yesBucket)} NO ${noBucket ? formatBucket(noBucket) : "none"}`);
         postPeakOrders(clob, yesBucket, noBucket, config);
       });
     }

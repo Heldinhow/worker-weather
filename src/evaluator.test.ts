@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { evaluateBuckets, evaluatePeakAtHour } from "./evaluator.ts";
+import { evaluateBuckets, evaluatePeakAtHour, evaluatePeakDrop } from "./evaluator.ts";
 import type { BucketState, TemperatureUnit } from "./types.ts";
 
 function bucket(label: string, lowerTemp: number, upperTemp: number, unit: TemperatureUnit = "C"): BucketState {
@@ -66,5 +66,49 @@ describe("evaluatePeakAtHour", () => {
     });
 
     expect(posted).toEqual(["72-73°F/none"]);
+  });
+});
+
+describe("evaluatePeakDrop", () => {
+  test("does not fire before 13h local", () => {
+    const buckets = [
+      bucket("22°C", 22, 22),
+      bucket("23°C", 23, 23),
+    ];
+    const posted: string[] = [];
+
+    evaluatePeakDrop(22, buckets, 12, { value: false }, (yesBucket, noBucket) => {
+      posted.push(`${yesBucket.label}/${noBucket?.label ?? "none"}`);
+    });
+
+    expect(posted).toEqual([]);
+  });
+
+  test("fires at 13h local", () => {
+    const buckets = [
+      bucket("22°C", 22, 22),
+      bucket("23°C", 23, 23),
+    ];
+    const posted: string[] = [];
+
+    evaluatePeakDrop(22, buckets, 13, { value: false }, (yesBucket, noBucket) => {
+      posted.push(`${yesBucket.label}/${noBucket?.label ?? "none"}`);
+    });
+
+    expect(posted).toEqual(["22°C/23°C"]);
+  });
+
+  test("does not fire at 16h local", () => {
+    const buckets = [
+      bucket("22°C", 22, 22),
+      bucket("23°C", 23, 23),
+    ];
+    const posted: string[] = [];
+
+    evaluatePeakDrop(22, buckets, 16, { value: false }, (yesBucket, noBucket) => {
+      posted.push(`${yesBucket.label}/${noBucket?.label ?? "none"}`);
+    });
+
+    expect(posted).toEqual([]);
   });
 });

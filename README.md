@@ -11,7 +11,7 @@ O Polymarket publica eventos do tipo _"highest temperature in São Paulo on June
 O bot mantém um **ObservedMax** por cidade — a temperatura máxima observada hoje via METAR. À medida que o ObservedMax sobe durante o dia, três oportunidades surgem:
 
 1. **Buckets impossíveis** — qualquer bucket abaixo do ObservedMax nunca resolverá em YES. São compras de NO a preço próximo de 1.00 (*Contested NO*).
-2. **Pico confirmado por queda** — quando a temperatura cai depois de uma máxima entre 12h–16h, o bucket do pico tem alta probabilidade de resolver YES e o bucket acima tem alta probabilidade de resolver NO (*Peak Detection*).
+2. **Pico confirmado por queda** — quando a temperatura cai depois de uma máxima entre 13h–16h pela hora local do METAR, o bucket do pico tem alta probabilidade de resolver YES e o bucket acima tem alta probabilidade de resolver NO (*Peak Detection*).
 3. **Pico confirmado por horário** — se nenhuma queda foi detectada, o primeiro METAR da hora configurada (16h por padrão) serve de gatilho para a mesma posição, mesmo sem queda detectada (*Daily Peak Trigger*).
 
 ### Fontes de dados
@@ -60,13 +60,13 @@ Compra YES no bucket do pico e NO no bucket imediatamente acima quando uma queda
 
 **Peak Detection** (`evaluatePeakDrop`)
 
-Dispara quando uma observação de temperatura mais baixa confirma que o pico passou. Ativo entre 12h–16h (hora local da cidade).
+Dispara quando uma observação de temperatura mais baixa confirma que o pico passou. Ativo entre 13h–16h pela hora local do METAR.
 
-- Condição: `obs.tempC < ObservedMax` enquanto `localHour ∈ [12, 16)`
+- Condição: `obs.tempC < ObservedMax` enquanto `metarLocalHour ∈ [13, 16)`
 - Compra: YES no bucket que contém `floor(convert(ObservedMax, bucket.unit))` a 0.95 + NO no próximo bucket finito acima a 0.97
 
 ```
-METAR (tempC < ObservedMax, 12h–16h local)
+METAR (tempC < ObservedMax, 13h–16h local do METAR)
   └─ evaluatePeakDrop
        ├─ postPeakYes (FAK YES, limite 0.95)
        └─ postPeakNo  (FAK NO,  limite 0.97)
@@ -104,7 +104,7 @@ METAR
        │    ├─ [Hot Window] evaluateBuckets → postOrder (NO, 0.99) por bucket contestado
        │    └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = PEAK_TRIGGER_HOUR
        └─ [tempC ≤ ObservedMax, ObservedMax ≠ -∞]
-            ├─ evaluatePeakDrop   → postPeakYes + postPeakNo se queda 12h–16h
+            ├─ evaluatePeakDrop   → postPeakYes + postPeakNo se queda 13h–16h pela hora local do METAR
             └─ evaluatePeakAtHour → postPeakYes + postPeakNo se hora local = PEAK_TRIGGER_HOUR
 ```
 

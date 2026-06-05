@@ -67,18 +67,18 @@ export function evaluatePeakAtHour(
   postPeakOrders(yesBucket, noBucket);
 }
 
-// Fires once when a confirmed temperature drop is detected between 12h–16h city-local time.
+// Fires once when a confirmed temperature drop is detected between 13h–16h METAR-local time.
 // Buys YES on the peak bucket and NO on the bucket immediately above.
 // Expects buckets sorted ascending by tempC.
 export function evaluatePeakDrop(
   observedMaxTempC: number,
   buckets: BucketState[],
-  localHour: number,
+  metarLocalHour: number,
   peakTriggered: { value: boolean },
   postPeakOrders: (yesBucket: BucketState, noBucket: BucketState | undefined) => void,
 ): void {
   if (peakTriggered.value) return;
-  if (localHour < 12 || localHour >= 16) return;
+  if (metarLocalHour < 13 || metarLocalHour >= 16) return;
 
   const { yesBucket, noBucket } = findPeakBuckets(observedMaxTempC, buckets);
 

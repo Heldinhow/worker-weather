@@ -37,7 +37,8 @@
     "timezone": "America/New_York",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 51,
-    "hotWindowEnd": 56
+    "hotWindowEnd": 56,
+    "enabled": false
   },
   {
     "slug": "austin",
@@ -45,7 +46,8 @@
     "timezone": "America/Chicago",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "chicago",
@@ -53,7 +55,8 @@
     "timezone": "America/Chicago",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 50,
-    "hotWindowEnd": 55
+    "hotWindowEnd": 55,
+    "enabled": false
   },
   {
     "slug": "dallas",
@@ -61,7 +64,8 @@
     "timezone": "America/Chicago",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "denver",
@@ -69,7 +73,8 @@
     "timezone": "America/Denver",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "houston",
@@ -77,7 +82,8 @@
     "timezone": "America/Chicago",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "los-angeles",
@@ -85,7 +91,8 @@
     "timezone": "America/Los_Angeles",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "miami",
@@ -93,7 +100,8 @@
     "timezone": "America/New_York",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "nyc",
@@ -101,7 +109,8 @@
     "timezone": "America/New_York",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 50,
-    "hotWindowEnd": 55
+    "hotWindowEnd": 55,
+    "enabled": false
   },
   {
     "slug": "san-francisco",
@@ -109,7 +118,8 @@
     "timezone": "America/Los_Angeles",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 55,
-    "hotWindowEnd": 0
+    "hotWindowEnd": 0,
+    "enabled": false
   },
   {
     "slug": "seattle",
@@ -117,7 +127,8 @@
     "timezone": "America/Los_Angeles",
     "targetHours": [11, 12, 13, 14, 15, 16],
     "hotWindowStart": 52,
-    "hotWindowEnd": 57
+    "hotWindowEnd": 57,
+    "enabled": false
   },
   {
     "slug": "london",

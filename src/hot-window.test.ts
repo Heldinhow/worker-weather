@@ -180,6 +180,43 @@ describe("handleObs", () => {
     expect(peakTriggered.value).toBe(true);
   });
 
+  test("uses METAR local hour for the Peak Drop time gate", () => {
+    const buckets = [
+      makeBucket("peak-drop-metar-hour-22", 22),
+      makeBucket("peak-drop-metar-hour-23", 23),
+    ];
+    const peakConfig = {
+      ...config,
+      strategy: "peak" as const,
+      dryRun: true,
+      dailyPeakTrigger: false,
+      metarMaxAgeMs: Number.MAX_SAFE_INTEGER,
+    };
+    const peakTriggered = { value: false };
+    const originalNow = Date.now;
+    Date.now = () => Date.UTC(2026, 5, 5, 17, 0); // 13h in Atlanta during EDT.
+
+    try {
+      handleObs(
+        { tempC: 21, observedAtUtcMs: Date.UTC(2026, 5, 5, 16, 53) }, // 12h in Atlanta.
+        "aw/KATL",
+        "KATL",
+        "America/New_York",
+        { value: 22 },
+        peakTriggered,
+        new Map(buckets.map(b => [b.noTokenId, b])),
+        buckets,
+        {} as ClobClient,
+        peakConfig,
+        true,
+      );
+    } finally {
+      Date.now = originalNow;
+    }
+
+    expect(peakTriggered.value).toBe(false);
+  });
+
   test("skips trades when METAR is stale", async () => {
     const bucket = makeBucket("stale-no-trade-12", 12);
     let postOrderCalls = 0;
