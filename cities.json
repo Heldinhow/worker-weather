@@ -3,16 +3,390 @@
     "slug": "sao-paulo",
     "icao": "SBGR",
     "timezone": "America/Sao_Paulo",
-    "targetHours": [10, 11, 12, 13, 14, 15, 16],
-    "hotWindowStart": 53,
-    "hotWindowEnd": 4
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 55,
+    "hotWindowEnd": 0
   },
   {
     "slug": "buenos-aires",
     "icao": "SAEZ",
     "timezone": "America/Argentina/Buenos_Aires",
-    "targetHours": [10, 11, 12, 13, 14, 15, 16],
-    "hotWindowStart": 53,
-    "hotWindowEnd": 4
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 0,
+    "hotWindowEnd": 5
+  },
+  {
+    "slug": "panama-city",
+    "icao": "MPMG",
+    "timezone": "America/Panama",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 2,
+    "hotWindowEnd": 7
+  },
+  {
+    "slug": "mexico-city",
+    "icao": "MMMX",
+    "timezone": "America/Mexico_City",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 55,
+    "hotWindowEnd": 0
+  },
+  {
+    "slug": "atlanta",
+    "icao": "KATL",
+    "timezone": "America/New_York",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 51,
+    "hotWindowEnd": 56
+  },
+  {
+    "slug": "austin",
+    "icao": "KAUS",
+    "timezone": "America/Chicago",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "chicago",
+    "icao": "KORD",
+    "timezone": "America/Chicago",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 50,
+    "hotWindowEnd": 55
+  },
+  {
+    "slug": "dallas",
+    "icao": "KDFW",
+    "timezone": "America/Chicago",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "denver",
+    "icao": "KDEN",
+    "timezone": "America/Denver",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "houston",
+    "icao": "KIAH",
+    "timezone": "America/Chicago",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "los-angeles",
+    "icao": "KLAX",
+    "timezone": "America/Los_Angeles",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "miami",
+    "icao": "KMIA",
+    "timezone": "America/New_York",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "new-york",
+    "icao": "KJFK",
+    "timezone": "America/New_York",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 50,
+    "hotWindowEnd": 55
+  },
+  {
+    "slug": "san-francisco",
+    "icao": "KSFO",
+    "timezone": "America/Los_Angeles",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 55,
+    "hotWindowEnd": 0
+  },
+  {
+    "slug": "seattle",
+    "icao": "KSEA",
+    "timezone": "America/Los_Angeles",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 52,
+    "hotWindowEnd": 57
+  },
+  {
+    "slug": "london",
+    "icao": "EGLC",
+    "timezone": "Europe/London",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 20,
+    "hotWindowEnd": 25
+  },
+  {
+    "slug": "paris",
+    "icao": "LFPG",
+    "timezone": "Europe/Paris",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 0,
+    "hotWindowEnd": 5
+  },
+  {
+    "slug": "munich",
+    "icao": "EDDM",
+    "timezone": "Europe/Berlin",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 19,
+    "hotWindowEnd": 24
+  },
+  {
+    "slug": "madrid",
+    "icao": "LEMD",
+    "timezone": "Europe/Madrid",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 0,
+    "hotWindowEnd": 5
+  },
+  {
+    "slug": "milan",
+    "icao": "LIML",
+    "timezone": "Europe/Rome",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 24,
+    "hotWindowEnd": 29
+  },
+  {
+    "slug": "istanbul",
+    "icao": "LTFM",
+    "timezone": "Europe/Istanbul",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 21,
+    "hotWindowEnd": 26
+  },
+  {
+    "slug": "ankara",
+    "icao": "LTAC",
+    "timezone": "Europe/Istanbul",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 21,
+    "hotWindowEnd": 26
+  },
+  {
+    "slug": "warsaw",
+    "icao": "EPWA",
+    "timezone": "Europe/Warsaw",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 0,
+    "hotWindowEnd": 5
+  },
+  {
+    "slug": "helsinki",
+    "icao": "EFHK",
+    "timezone": "Europe/Helsinki",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 17,
+    "hotWindowEnd": 22
+  },
+  {
+    "slug": "amsterdam",
+    "icao": "EHAM",
+    "timezone": "Europe/Amsterdam",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 23,
+    "hotWindowEnd": 28
+  },
+  {
+    "slug": "moscow",
+    "icao": "UUEE",
+    "timezone": "Europe/Moscow",
+    "targetHours": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "hotWindowStart": 0,
+    "hotWindowEnd": 5
   }
 ]
