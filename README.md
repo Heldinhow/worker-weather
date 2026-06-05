@@ -1,6 +1,6 @@
 # weather-100-percent
 
-Bot que monitora mercados de temperatura no Polymarket e compra NO assim que uma observação METAR torna um bucket meteorologicamente impossível para o dia.
+Bot de trading para mercados de temperatura no Polymarket. Monitora observações METAR em tempo real e executa três estratégias complementares: **Contested NO** (buckets impossíveis para o dia), **Peak Detection** (queda confirma o pico) e **Daily Peak Trigger** (safety net horário às 15h).
 
 ## Como funciona
 
@@ -8,9 +8,11 @@ Bot que monitora mercados de temperatura no Polymarket e compra NO assim que uma
 
 O Polymarket publica eventos do tipo _"highest temperature in São Paulo on June 2, 2026"_. Cada evento tem vários **buckets**: mercados binários para um valor exato de temperatura em °C (ex.: "exactly 18°C"). O bot opera exclusivamente sobre buckets do tipo `exact`.
 
-Quando a temperatura máxima observada no dia (`ObservedMax`) passa de 19°C, por exemplo, o bucket "exactly 18°C" torna-se impossível de resolver em YES — a temperatura já foi maior. O NO desse bucket vale 1.00 e pode ser comprado a qualquer preço abaixo disso. O bot chama essa posição de **Contested NO** e compra imediatamente.
+O bot mantém um **ObservedMax** por cidade — a temperatura máxima observada hoje via METAR. À medida que o ObservedMax sobe durante o dia, três oportunidades surgem:
 
-A condição exata: `floor(ObservedMax) > bucket.tempC`.
+1. **Buckets impossíveis** — qualquer bucket abaixo do ObservedMax nunca resolverá em YES. São compras de NO a preço próximo de 1.00 (*Contested NO*).
+2. **Pico confirmado por queda** — quando a temperatura cai depois de uma máxima entre 12h–16h, o bucket do pico tem alta probabilidade de resolver YES e o bucket acima tem alta probabilidade de resolver NO (*Peak Detection*).
+3. **Pico confirmado por horário** — o pico de temperatura máxima ocorre normalmente até às 15h. Se nenhuma queda foi detectada, o primeiro METAR da 15h serve de gatilho para a mesma posição (*Daily Peak Trigger*).
 
 ### Fontes de dados
 
