@@ -11,7 +11,7 @@ export type BucketState = {
   icao?: string;
   citySlug?: string;
   eventSlug?: string;
-  type: "exact" | "range" | "below" | "above";
+  type: "exact" | "below" | "above";
   noTokenId: string;
   yesTokenId: string;
   conditionId: string;

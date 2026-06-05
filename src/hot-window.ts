@@ -174,8 +174,8 @@ export async function runHotWindowLoop(
 ): Promise<void> {
   const peakTriggered = { value: false };
   const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
-  const tradableBuckets = buckets.filter(b => b.type === "exact" || b.type === "range");
-  const exactTokenIds = tradableBuckets.map(b => b.noTokenId);
+  const exactBuckets = buckets.filter(b => b.type === "exact");
+  const exactTokenIds = exactBuckets.map(b => b.noTokenId);
   const wsKey = [...exactTokenIds].sort().join(",");
 
   if (!config.dryRun) {
@@ -232,7 +232,7 @@ export async function runHotWindowLoop(
           ],
           () => isHotWindowMs(Date.now(), activeHour, city.hotWindowStart, city.hotWindowEnd, city.timezone),
           obs => getLocalHour(obs.observedAtUtcMs, city.timezone) !== prevHour,
-          (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, tradableBuckets, clob, config, true),
+          (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config, true),
         );
       }
 
@@ -250,7 +250,7 @@ export async function runHotWindowLoop(
           { source: `noaa/${city.icao}`, promise: fetchNoaa(city.icao) },
           { source: `aw/${city.icao}`, promise: fetchAviationWeather(city.icao) },
         ],
-        (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, tradableBuckets, clob, config, false),
+        (obs, source) => handleObs(obs, source, city.icao, city.timezone, observedMaxRef, peakTriggered, bucketMap, exactBuckets, clob, config, false),
       );
       if (!config.dryRun) await refreshBooks(clob, exactTokenIds);
 

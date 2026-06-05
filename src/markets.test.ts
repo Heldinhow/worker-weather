@@ -35,7 +35,7 @@ describe("parseGammaMarket", () => {
       upperTemp: 71,
       tempC: 71,
       unit: "F",
-      type: "range",
+      type: "exact",
       label: "70-71°F",
     });
   });
