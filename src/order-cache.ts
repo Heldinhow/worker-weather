@@ -73,12 +73,12 @@ export async function prepareOrders(
   buckets: BucketState[],
   config: Config,
 ): Promise<void> {
-  const exactRequested = buckets.filter(b => b.type === "exact");
-  const pendingTasks = exactRequested
+  const tradableRequested = buckets.filter(b => b.type === "exact" || b.type === "range");
+  const pendingTasks = tradableRequested
     .map(b => preparingOrders.get(b.noTokenId))
     .filter((task): task is Promise<void> => task !== undefined);
-  const exactBuckets = buckets.filter(b =>
-    b.type === "exact" &&
+  const tradableBuckets = buckets.filter(b =>
+    (b.type === "exact" || b.type === "range") &&
     !preparedOrders.has(b.noTokenId) &&
     !preparingOrders.has(b.noTokenId)
   );
@@ -93,7 +93,7 @@ export async function prepareOrders(
       )
     : [];
 
-  if (exactBuckets.length === 0 && exactPeakBuckets.length === 0) {
+  if (tradableBuckets.length === 0 && exactPeakBuckets.length === 0) {
     await Promise.allSettled(pendingTasks);
     return;
   }
@@ -103,7 +103,7 @@ export async function prepareOrders(
   const yesShares = peakShares(YES_LIMIT_PRICE, config);
   const peakNoShares = peakShares(PEAK_NO_LIMIT_PRICE, config);
 
-  const noTasks = exactBuckets.map(bucket => {
+  const noTasks = tradableBuckets.map(bucket => {
     const options = { tickSize: "0.01" as const, negRisk: bucket.negRisk };
     const task = (async () => {
       const marketInfoPromise = clob.getClobMarketInfo(bucket.conditionId).catch(() => undefined);

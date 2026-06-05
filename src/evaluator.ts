@@ -7,7 +7,7 @@ export function evaluateBuckets(
   postOrder: (bucket: BucketState) => void,
 ): void {
   for (const b of buckets) {
-    if (b.type !== "exact") continue;
+    if (b.type !== "exact" && b.type !== "range") continue;
     const observedWhole = observedWholeTempInUnit(observedMaxTempC, b.unit);
     if (observedWhole <= b.upperTemp) continue;
     if (b.bought || b.attempted || b.pendingBuy) continue;

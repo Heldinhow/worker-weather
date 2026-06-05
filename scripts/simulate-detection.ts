@@ -84,15 +84,15 @@ if (!city) {
 
 console.log(`[sim] fetching buckets for ${city.slug} (${icao}) date=${date ?? "today"}...`);
 const buckets = await fetchBuckets(city, date);
-const exactBuckets = buckets.filter(b => b.type === "exact");
-console.log(`[sim] ${buckets.length} buckets loaded. exact: ${exactBuckets.map(formatBucket).join(", ")}`);
+const tradableBuckets = buckets.filter(b => b.type === "exact" || b.type === "range");
+console.log(`[sim] ${buckets.length} buckets loaded. exact: ${tradableBuckets.map(formatBucket).join(", ")}`);
 
 const clob = await initClobClient(config);
 const bucketMap = new Map(buckets.map(b => [b.noTokenId, b]));
 const observedMaxRef = { value: initialMax };
 
-const triggered = exactBuckets.filter(b => observedWholeTempInUnit(obs, b.unit) > b.upperTemp);
-const observedUnits = [...new Set(exactBuckets.map(b => b.unit))]
+const triggered = tradableBuckets.filter(b => observedWholeTempInUnit(obs, b.unit) > b.upperTemp);
+const observedUnits = [...new Set(tradableBuckets.map(b => b.unit))]
   .map(unit => `${observedWholeTempInUnit(obs, unit)}°${unit}`)
   .join(" / ");
 console.log(`[sim] obs=${obs}°C  initial-max=${initialMax}°C  resolved=${observedUnits}`);

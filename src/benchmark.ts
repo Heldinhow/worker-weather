@@ -44,7 +44,7 @@ async function runBenchmark(): Promise<void> {
 
   const city = config.cities[0]!;
   const buckets = await resolveMarkets(city);
-  const exactTokenIds = buckets.filter(b => b.type === "exact").map(b => b.noTokenId);
+  const exactTokenIds = buckets.filter(b => b.type === "exact" || b.type === "range").map(b => b.noTokenId);
 
   startBookStream(exactTokenIds, city.icao);
   const prewarmPromise = prepareOrders(clob, buckets, config);

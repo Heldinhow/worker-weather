@@ -34,7 +34,7 @@ function parseTemperatureBucket(market: GammaMarket): ParsedBucket | null {
     const upperTemp = Number(range[2]);
     const unit = parseUnit(range[3]!);
     return {
-      type: "exact",
+      type: "range",
       lowerTemp,
       upperTemp,
       unit,
